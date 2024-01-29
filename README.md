@@ -1,12 +1,9 @@
-# cudaAmrIsoSurfaceExtraction: Sample code for our CUDA AMR Dual-Mesh Generation / Iso-Surface Extraction Paper
+# cudaAmrIsoSurfaceExtraction
 
-![ecosys.pbrt](teaser2.png "exajet teaser")
+Sample code for our CUDA AMR Dual-Mesh Generation / Iso-Surface
+Extraction Paper
 
-This repository serves as auxiliary material / sample code for the
-algorithm/method presented in the following paper:
-
-Ingo Wald, "A Simple, General, and GPU Friendly Method for Computing
-Dual Mesh and Iso-Surfaces of Adaptive Mesh Refinement (AMR) Data",
-2020, ArXiv (number TBD).
-
-
+Wald, Ingo. "A simple, general, and GPU friendly method for computing
+dual mesh and iso-surfaces of adaptive mesh refinement (AMR) data."
+arXiv preprint arXiv:2004.08475 (2020).
+<https://arxiv.org/abs/2004.08475>
