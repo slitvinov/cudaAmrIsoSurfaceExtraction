@@ -1,95 +1,43 @@
 #include <cuda.h>
+#include <fstream>
+#include <iostream>
+#include <stdexcept>
 #include <stdio.h>
-
-#include <thrust/device_vector.h>
-#include <thrust/generate.h>
-#include <thrust/host_vector.h>
-#include <thrust/sort.h>
-
 #include <thrust/binary_search.h>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
 #include <thrust/functional.h>
-
-#include <fstream>
-#include <iostream>
-#include <stdexcept>
-
-int divUp(int a, int b) { return (a + b - 1) / b; }
-
-void cuda_safe_call(cudaError_t error, const std::string &message = "") {
-  if (error)
-    throw thrust::system_error(error, thrust::cuda_category(), message);
-}
-
-struct timer {
-  cudaEvent_t start;
-  cudaEvent_t end;
-
-  timer(void) {
-    cuda_safe_call(cudaEventCreate(&start));
-    cuda_safe_call(cudaEventCreate(&end));
-    restart();
-  }
-
-  ~timer(void) {
-    cuda_safe_call(cudaEventDestroy(start));
-    cuda_safe_call(cudaEventDestroy(end));
-  }
-
-  void restart(void) { cuda_safe_call(cudaEventRecord(start, 0)); }
-
-  double elapsed(void) {
-    cuda_safe_call(cudaEventRecord(end, 0));
-    cuda_safe_call(cudaEventSynchronize(end));
-
-    float ms_elapsed;
-    cuda_safe_call(cudaEventElapsedTime(&ms_elapsed, start, end));
-    return ms_elapsed / 1e3;
-  }
-
-  double epsilon(void) { return 0.5e-6; }
-};
-
-// ------------------------------------------------------------------
-// vec3i
-// ------------------------------------------------------------------
+#include <thrust/generate.h>
+#include <thrust/host_vector.h>
+#include <thrust/sort.h>
 
 struct vec3i {
-  inline __host__ __device__ vec3i() {}
-  inline __host__ __device__ vec3i(int i) : x(i), y(i), z(i) {}
-  inline __host__ __device__ vec3i(int x, int y, int z) : x(x), y(y), z(z) {}
+  __host__ __device__ vec3i() {}
+  __host__ __device__ vec3i(int i) : x(i), y(i), z(i) {}
+  __host__ __device__ vec3i(int x, int y, int z) : x(x), y(y), z(z) {}
   int x, y, z;
 };
 
-inline std::ostream &operator<<(std::ostream &o, const vec3i &v) {
-  o << "(" << v.x << "," << v.y << "," << v.z << ")";
-  return o;
-}
-inline __host__ __device__ vec3i operator+(const vec3i &a, const vec3i &b) {
+__host__ __device__ vec3i operator+(const vec3i &a, const vec3i &b) {
   return {a.x + b.x, a.y + b.y, a.z + b.z};
 }
-inline __host__ __device__ vec3i operator-(const vec3i &a, const vec3i &b) {
+__host__ __device__ vec3i operator-(const vec3i &a, const vec3i &b) {
   return {a.x - b.x, a.y - b.y, a.z - b.z};
 }
-inline __host__ __device__ vec3i operator*(const vec3i &a, const vec3i &b) {
-  return {a.x * b.x, a.y * b.y, a.z * b.z};
-}
-inline __host__ __device__ vec3i operator*(const vec3i &a, const int b) {
+__host__ __device__ vec3i operator*(const vec3i &a, const int b) {
   return {a.x * b, a.y * b, a.z * b};
 }
-inline __host__ vec3i min(const vec3i &a, const vec3i &b) {
+__host__ vec3i min(const vec3i &a, const vec3i &b) {
   return vec3i(std::min(a.x, b.x), std::min(a.y, b.y), std::min(a.z, b.z));
 }
-inline __host__ vec3i max(const vec3i &a, const vec3i &b) {
+__host__ vec3i max(const vec3i &a, const vec3i &b) {
   return vec3i(std::max(a.x, b.x), std::max(a.y, b.y), std::max(a.z, b.z));
 }
-
-inline __device__ __host__ vec3i operator>>(const vec3i v, const int s) {
+__device__ __host__ vec3i operator>>(const vec3i v, const int s) {
   return vec3i(v.x >> s, v.y >> s, v.z >> s);
 }
 
-inline __device__ __host__ uint64_t leftShift3(uint64_t x) {
+__device__ __host__ long leftShift3(long x) {
   x = (x | x << 32) & 0x1f00000000ffffull;
   x = (x | x << 16) & 0x1f0000ff0000ffull;
   x = (x | x << 8) & 0x100f00f00f00f00full;
@@ -98,155 +46,100 @@ inline __device__ __host__ uint64_t leftShift3(uint64_t x) {
   return x;
 }
 
-inline __device__ __host__ uint64_t mortonCode(const vec3i v) {
+__device__ __host__ long mortonCode(const vec3i v) {
   return (leftShift3(uint32_t(v.z)) << 2) | (leftShift3(uint32_t(v.y)) << 1) |
          (leftShift3(uint32_t(v.x)) << 0);
 }
 
-inline __host__ __device__ bool operator==(const vec3i &a, const vec3i &b) {
+__host__ __device__ bool operator==(const vec3i &a, const vec3i &b) {
   return a.x == b.x && a.y == b.y && a.z == b.z;
 }
 
-// ------------------------------------------------------------------
-// vec3f
-// ------------------------------------------------------------------
-
 struct vec3f {
-  inline __host__ __device__ vec3f() {}
-  inline __host__ __device__ vec3f(const float x, const float y, const float z)
+  __host__ __device__ vec3f() {}
+  __host__ __device__ vec3f(const float x, const float y, const float z)
       : x(x), y(y), z(z) {}
-  inline __host__ __device__ vec3f(const float f) : x(f), y(f), z(f) {}
-  inline __host__ __device__ vec3f(const vec3i o) : x(o.x), y(o.y), z(o.z) {}
+  __host__ __device__ vec3f(const float f) : x(f), y(f), z(f) {}
+  __host__ __device__ vec3f(const vec3i o) : x(o.x), y(o.y), z(o.z) {}
 
   float x, y, z;
 };
 
-inline __host__ __device__ vec3f operator+(const vec3f &a, const vec3f &b) {
+__host__ __device__ vec3f operator+(const vec3f &a, const vec3f &b) {
   return {a.x + b.x, a.y + b.y, a.z + b.z};
 }
-inline __host__ __device__ vec3f operator-(const vec3f &a, const vec3f &b) {
+__host__ __device__ vec3f operator-(const vec3f &a, const vec3f &b) {
   return {a.x - b.x, a.y - b.y, a.z - b.z};
 }
-inline __host__ __device__ vec3f operator*(const vec3f &a, const vec3f &b) {
+__host__ __device__ vec3f operator*(const vec3f &a, const vec3f &b) {
   return {a.x * b.x, a.y * b.y, a.z * b.z};
 }
-inline __host__ __device__ vec3f operator*(const vec3f &a, const float b) {
+__host__ __device__ vec3f operator*(const vec3f &a, const float b) {
   return {a.x * b, a.y * b, a.z * b};
 }
-inline __host__ __device__ bool operator==(const vec3f &a, const vec3f &b) {
+__host__ __device__ bool operator==(const vec3f &a, const vec3f &b) {
   return a.x == b.x && a.y == b.y && a.z == b.z;
 }
 
-inline __host__ __device__ bool operator<(const vec3f &a, const vec3f &b) {
+__host__ __device__ bool operator<(const vec3f &a, const vec3f &b) {
   return (a.x < b.x) ||
          ((a.x == b.x) && ((a.y < b.y) || (a.y == b.y) && (a.z < b.z)));
 }
 
-// ------------------------------------------------------------------
-// vec4f
-// ------------------------------------------------------------------
-
-struct vec4f {
-  inline __host__ __device__ vec4f() {}
-  inline __host__ __device__ vec4f(const vec3f v, float w)
-      : x(v.x), y(v.y), z(v.z), w(w) {}
-  inline __host__ __device__ vec4f(float f) : x(f), y(f), z(f), w(f) {}
-  inline __host__ __device__ vec4f(float x, float y, float z, float w)
-      : x(x), y(y), z(z), w(w) {}
-
-  float x, y, z, w;
-};
-
-inline __host__ __device__ vec4f operator+(const vec4f &a, const vec4f &b) {
+__host__ __device__ float4 operator+(const float4 &a, const float4 &b) {
   return {a.x + b.x, a.y + b.y, a.z + b.z, a.w + b.w};
 }
-inline __host__ __device__ vec4f operator*(const vec4f &a, const vec4f &b) {
+__host__ __device__ float4 operator*(const float4 &a, const float4 &b) {
   return {a.x * b.x, a.y * b.y, a.z * b.z, a.w * b.w};
 }
-inline __host__ __device__ vec4f operator-(const vec4f &a, const vec4f &b) {
+__host__ __device__ float4 operator-(const float4 &a, const float4 &b) {
   return {a.x - b.x, a.y - b.y, a.z - b.z, a.w - b.w};
 }
-inline __host__ __device__ vec4f operator*(const vec4f &a, const float b) {
+__host__ __device__ float4 operator*(const float4 &a, const float b) {
   return {a.x * b, a.y * b, a.z * b, a.w * b};
 }
-inline __host__ __device__ vec4f operator*(const float b, const vec4f &a) {
+__host__ __device__ float4 operator*(const float b, const float4 &a) {
   return {a.x * b, a.y * b, a.z * b, a.w * b};
 }
 
-inline __host__ __device__ bool operator==(const vec4f &a, const vec4f &b) {
+__host__ __device__ bool operator==(const float4 &a, const float4 &b) {
   return a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w;
 }
-
-inline __host__ __device__ float4 operator+(const float4 &a, const float4 &b) {
-  return {a.x + b.x, a.y + b.y, a.z + b.z, a.w + b.w};
-}
-inline __host__ __device__ float4 operator*(const float4 &a, const float4 &b) {
-  return {a.x * b.x, a.y * b.y, a.z * b.z, a.w * b.w};
-}
-inline __host__ __device__ float4 operator-(const float4 &a, const float4 &b) {
-  return {a.x - b.x, a.y - b.y, a.z - b.z, a.w - b.w};
-}
-inline __host__ __device__ float4 operator*(const float4 &a, const float b) {
-  return {a.x * b, a.y * b, a.z * b, a.w * b};
-}
-inline __host__ __device__ float4 operator*(const float b, const float4 &a) {
-  return {a.x * b, a.y * b, a.z * b, a.w * b};
-}
-
-inline __host__ __device__ bool operator==(const float4 &a, const float4 &b) {
-  return a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w;
-}
-
-// ------------------------------------------------------------------
-// Cell Coords
-// ------------------------------------------------------------------
 
 struct CellCoords {
-  inline __host__ __device__ CellCoords neighbor(const vec3i &delta) const {
+  __host__ __device__ CellCoords neighbor(const vec3i &delta) const {
     return {lower + delta * (1 << level), level};
   }
-
-  inline __host__ __device__ vec3f center() const {
+  __host__ __device__ vec3f center() const {
     return vec3f(lower) + vec3f(0.5f * (1 << level));
   }
-
   vec3i lower;
   int level;
 };
 
-inline __host__ __device__ bool operator<(const CellCoords &a,
-                                          const CellCoords &b) {
+__host__ __device__ bool operator<(const CellCoords &a, const CellCoords &b) {
   return (a.lower < b.lower) || (a.lower == b.lower && b.level < b.level);
 }
 
-inline __host__ __device__ bool operator==(const CellCoords &a,
-                                           const CellCoords &b) {
+__host__ __device__ bool operator==(const CellCoords &a, const CellCoords &b) {
   return (a.lower == b.lower) && (a.level == b.level);
 }
 
-// ------------------------------------------------------------------
-// Cell
-// ------------------------------------------------------------------
-
 struct Cell : public CellCoords {
-  inline __device__ __host__ float4 asDualVertex() const {
+  __device__ __host__ float4 asDualVertex() const {
     return make_float4(center().x, center().y, center().z, scalar);
   }
   float scalar;
 };
 
-inline __host__ __device__ bool operator==(const Cell &a, const Cell &b) {
+__host__ __device__ bool operator==(const Cell &a, const Cell &b) {
   return ((const CellCoords &)a == (const CellCoords &)b) &&
          (a.scalar == b.scalar);
 }
 
-inline __host__ __device__ bool operator!=(const Cell &a, const Cell &b) {
+__host__ __device__ bool operator!=(const Cell &a, const Cell &b) {
   return !(a == b);
 }
-
-// ------------------------------------------------------------------
-// "Fat" Triangle Vertex
-// ------------------------------------------------------------------
 
 struct TriangleVertex {
   vec3f position;
@@ -254,9 +147,8 @@ struct TriangleVertex {
 };
 
 struct CompareByCoordsLowerOnly {
-  inline __host__ __device__ CompareByCoordsLowerOnly(const vec3i coordOrigin)
+  __host__ __device__ CompareByCoordsLowerOnly(const vec3i coordOrigin)
       : coordOrigin(coordOrigin) {}
-
   __host__ __device__ bool operator()(const Cell &lhs,
                                       const CellCoords &rhs) const {
     return (mortonCode(lhs.lower - coordOrigin) <
@@ -275,59 +167,12 @@ struct CompareVertices {
   }
 };
 
-vec3i readInput(thrust::host_vector<Cell> &h_cells, int &maxLevel,
-                const std::string &cellFileName,
-                const std::string &scalarFileName) {
-  vec3i coordOrigin(1 << 30);
-  std::ifstream in_cells(cellFileName, std::ios::binary);
-  std::ifstream in_scalars(scalarFileName, std::ios::binary);
-
-  vec3i bounds_lower(1 << 30);
-  vec3i bounds_upper(-(1 << 30));
-
-  maxLevel = 0;
-  while (!in_cells.eof()) {
-    Cell cell;
-    in_cells.read((char *)&cell, sizeof(CellCoords));
-    in_scalars.read((char *)&cell.scalar, sizeof(float));
-
-    if (!(in_cells.good() && in_scalars.good()))
-      break;
-
-    maxLevel = std::max(maxLevel, cell.level);
-    h_cells.push_back(cell);
-    bounds_lower = min(bounds_lower, cell.lower);
-    bounds_upper = max(bounds_upper, cell.lower + vec3i(1 << cell.level));
-    coordOrigin = min(coordOrigin, cell.lower);
-    static size_t nextPing = 1;
-    if (h_cells.size() >= nextPing) {
-      std::cout << "read so far : " << h_cells.size() << "..." << std::endl;
-      nextPing *= 2;
-    }
-  }
-  std::cout << "done reading, found " << h_cells.size() << " cells"
-            << std::endl;
-  std::cout << "bounds " << bounds_lower << ".." << bounds_upper
-            << " logical size " << (bounds_upper - bounds_lower) << std::endl;
-  std::cout << "coord origin: " << coordOrigin << std::endl;
-
-  coordOrigin.x &= ~((1 << maxLevel) - 1);
-  coordOrigin.y &= ~((1 << maxLevel) - 1);
-  coordOrigin.z &= ~((1 << maxLevel) - 1);
-
-  std::cout << "coord origin: " << coordOrigin << std::endl;
-
-  return coordOrigin;
-}
-
 struct AMR {
-  __host__ __device__ inline AMR(
-      const vec3i coordOrigin, const Cell *const __restrict__ cellArray,
-      const int numCells, const int maxLevel)
-      :
-        coordOrigin(coordOrigin), cellArray(cellArray), numCells(numCells),
-        maxLevel(maxLevel) {
-  }
+  __host__ __device__ AMR(const vec3i coordOrigin,
+                          const Cell *const __restrict__ cellArray,
+                          const int numCells, const int maxLevel)
+      : coordOrigin(coordOrigin), cellArray(cellArray), numCells(numCells),
+        maxLevel(maxLevel) {}
 
   __host__ __device__ bool findActual(Cell &result, const CellCoords &coords) {
     const Cell *const __restrict__ begin = cellArray;
@@ -352,7 +197,6 @@ struct AMR {
   const int numCells;
   const int maxLevel;
   const vec3i coordOrigin;
-
 };
 
 __constant__ int8_t vtkMarchingCubesTriangleCases[256][16] = {
@@ -630,12 +474,10 @@ struct IsoExtractor {
   const int outputArraySize;
   int *const p_atomicCounter;
 
-  inline int __device__ allocTriangle() {
-    return atomicAdd(p_atomicCounter, 1);
-  }
+  int __device__ allocTriangle() { return atomicAdd(p_atomicCounter, 1); }
 
-  inline void __device__ doMarchingCubesOn(const vec3i mirror,
-                                           const Cell zOrder[2][2][2]) {
+  void __device__ doMarchingCubesOn(const vec3i mirror,
+                                    const Cell zOrder[2][2][2]) {
     // we have OUR cells in z-order, but VTK case table assumes
     // everything is is VTK 'hexahedron' ordering, so let's rearrange
     // ... and while doing so, also make sure that we flip based on
@@ -687,13 +529,14 @@ struct IsoExtractor {
   }
 };
 
-__global__ void extractTriangles(
-    const vec3i coordOrigin, const Cell *const __restrict__ cellArray,
-    const int numCells, const int maxLevel, const float isoValue,
-    TriangleVertex *__restrict__ outVertex, const int outVertexSize,
-    int *p_numGeneratedTriangles) {
-  AMR amr(
-      coordOrigin, cellArray, numCells, maxLevel);
+__global__ void extractTriangles(const vec3i coordOrigin,
+                                 const Cell *const __restrict__ cellArray,
+                                 const int numCells, const int maxLevel,
+                                 const float isoValue,
+                                 TriangleVertex *__restrict__ outVertex,
+                                 const int outVertexSize,
+                                 int *p_numGeneratedTriangles) {
+  AMR amr(coordOrigin, cellArray, numCells, maxLevel);
 
   const size_t threadID = threadIdx.x + size_t(blockDim.x) * blockIdx.x;
 
@@ -766,6 +609,7 @@ createVertexArray(int *p_atomicCounter,
 }
 
 int main(int ac, char **av) {
+  long numCells;
   if (ac != 5)
     throw std::runtime_error(
         "cudaAmrIso in.cells in.scalars isoValue outFile.obj");
@@ -777,41 +621,46 @@ int main(int ac, char **av) {
 
   int maxLevel = 0;
   thrust::host_vector<Cell> h_cells;
-  timer time;
-  const vec3i coordOrigin =
-      readInput(h_cells, maxLevel, cellFileName, scalarFileName);
-  std::cout << "#input read, took " << time.elapsed() << "s" << std::endl;
-  timer totalRuntime;
 
-  // ------------------------------------------------------------------
-  // step 1: upload cells to device, and sort
-  // ------------------------------------------------------------------
-  time.restart();
+  vec3i coordOrigin(1 << 30);
+  std::ifstream in_cells(cellFileName, std::ios::binary);
+  std::ifstream in_scalars(scalarFileName, std::ios::binary);
+
+  vec3i bounds_lower(1 << 30);
+  vec3i bounds_upper(-(1 << 30));
+
+  maxLevel = 0;
+  numCells = 0;
+  while (!in_cells.eof()) {
+    Cell cell;
+    in_cells.read((char *)&cell, sizeof(CellCoords));
+    in_scalars.read((char *)&cell.scalar, sizeof(float));
+    if (!(in_cells.good() && in_scalars.good()))
+      break;
+    maxLevel = std::max(maxLevel, cell.level);
+    h_cells.push_back(cell);
+    bounds_lower = min(bounds_lower, cell.lower);
+    bounds_upper = max(bounds_upper, cell.lower + vec3i(1 << cell.level));
+    coordOrigin = min(coordOrigin, cell.lower);
+    numCells++;
+  }
+  coordOrigin.x &= ~((1 << maxLevel) - 1);
+  coordOrigin.y &= ~((1 << maxLevel) - 1);
+  coordOrigin.z &= ~((1 << maxLevel) - 1);
+  fprintf(stderr, "numCells: %ld %ld\n", numCells, h_cells.size());
   thrust::device_vector<Cell> d_cells = h_cells;
   cudaDeviceSynchronize();
-  std::cout << "#cells uploaded, took " << time.elapsed() << "s" << std::endl;
-
-  time.restart();
   thrust::sort(d_cells.begin(), d_cells.end(),
                CompareByCoordsLowerOnly(coordOrigin));
   cudaDeviceSynchronize();
-  std::cout << "#sorted, took " << time.elapsed() << "s" << std::endl;
-
-  // ------------------------------------------------------------------
-  // step 2a: run triangle extraction, count triangles
-  // ------------------------------------------------------------------
   thrust::device_vector<int> d_atomicCounter(1);
   thrust::device_vector<TriangleVertex> d_triangleVertices(0);
 
-  time.restart();
   {
     d_atomicCounter[0] = 0;
     size_t numJobs = 8 * h_cells.size();
     int blockSize = 512;
     int numBlocks = (numJobs + blockSize - 1) / blockSize;
-    // dim3 grid(1024,divUp(numBlocks,1024));
-    // std::cout << "launching with grid " << grid.x << " " << grid.y << "
-    // blocksize " << blockSize << std::endl;
     extractTriangles<<<numBlocks, blockSize>>>(
         coordOrigin, thrust::raw_pointer_cast(d_cells.data()), d_cells.size(),
         maxLevel, isoValue, thrust::raw_pointer_cast(d_triangleVertices.data()),
@@ -819,17 +668,9 @@ int main(int ac, char **av) {
         thrust::raw_pointer_cast(d_atomicCounter.data()));
   }
   cudaDeviceSynchronize();
-  std::cout << "#first pass for counting done, took " << time.elapsed() << "s"
-            << std::endl;
-
-  // ------------------------------------------------------------------
-  // step 2b: allocate output array, and rerun, this time writing tris
-  // ------------------------------------------------------------------
   int numTriangles = d_atomicCounter[0];
-  std::cout << "expecting num triangles = " << numTriangles << std::endl;
   d_triangleVertices.resize(3 * numTriangles);
 
-  time.restart();
   {
     d_atomicCounter[0] = 0;
     size_t numJobs = 8 * h_cells.size();
@@ -843,25 +684,9 @@ int main(int ac, char **av) {
         thrust::raw_pointer_cast(d_atomicCounter.data()));
   }
   cudaDeviceSynchronize();
-  std::cout << "#first pass for actual generation, took " << time.elapsed()
-            << "s" << std::endl;
-
-  // ==================================================================
-  // step 3: create vertex array
-  // ==================================================================
-
-  // ------------------------------------------------------------------
-  // step 3a: sort vertex array
-  // ------------------------------------------------------------------
-  time.restart();
   thrust::sort(d_triangleVertices.begin(), d_triangleVertices.end(),
                CompareVertices());
   cudaDeviceSynchronize();
-  std::cout << "#sorted vertices, took " << time.elapsed() << "s" << std::endl;
-
-  // ------------------------------------------------------------------
-  // step 3b: count unique vertices
-  // ------------------------------------------------------------------
   thrust::device_vector<float3> d_vertexArray(0);
   thrust::device_vector<int3> d_indexArray(numTriangles);
   {
@@ -877,15 +702,7 @@ int main(int ac, char **av) {
         thrust::raw_pointer_cast(d_indexArray.data()));
   }
   cudaDeviceSynchronize();
-  std::cout << "#counted unique vertices, took " << time.elapsed() << "s"
-            << std::endl;
-
   int numVertices = d_atomicCounter[0];
-  std::cout << "expecting num vertices " << numVertices << std::endl;
-
-  // ------------------------------------------------------------------
-  // step 3c: writing vertices
-  // ------------------------------------------------------------------
   d_vertexArray.resize(numVertices);
   {
     d_atomicCounter[0] = 0;
@@ -900,15 +717,6 @@ int main(int ac, char **av) {
         thrust::raw_pointer_cast(d_indexArray.data()));
   }
   cudaDeviceSynchronize();
-  std::cout << "#generated vertex and index array, took " << time.elapsed()
-            << "s" << std::endl;
-
-  std::cout << "total runtime from upload to download : "
-            << totalRuntime.elapsed() << "s" << std::endl;
-
-  // ------------------------------------------------------------------
-  // step 4: download and write out
-  // ------------------------------------------------------------------
   std::ofstream out(outFileName, std::ios::binary);
   out.precision(10);
   thrust::host_vector<float3> h_vertexArray = d_vertexArray;
