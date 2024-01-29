@@ -609,37 +609,42 @@ createVertexArray(int *p_atomicCounter,
 }
 
 int main(int argc, char **argv) {
-  long numCells;
-  FILE *output_file;;
-  const char *output_path;
-  
+  float isoValue;
+  float3 *vert;
+  int3 *tri;
+  int face[4], maxLevel;
+  long i, nvert, ntri, numCells;
+  FILE *output_file, *cell_file, *scalar_file;
+  const char *output_path, *cell_path, *scalar_path;
+  thrust::host_vector<Cell> h_cells;
+
   if (argc != 5) {
     fprintf(stderr, "cudaAmrIso in.cells in.scalars isoValue mesh.ply");
     exit(1);
   }
-  const std::string cellFileName = argv[1];
-  const std::string scalarFileName = argv[2];
-  const float isoValue = std::stof(argv[3]);
-  const std::string outFileName = argv[4];
+  cell_path = argv[1];
+  scalar_path = argv[2];
+  isoValue = std::stof(argv[3]);
   output_path = argv[4];
 
-  int maxLevel = 0;
-  thrust::host_vector<Cell> h_cells;
-
   vec3i coordOrigin(1 << 30);
-  std::ifstream in_cells(cellFileName, std::ios::binary);
-  std::ifstream in_scalars(scalarFileName, std::ios::binary);
-
   vec3i bounds_lower(1 << 30);
   vec3i bounds_upper(-(1 << 30));
-
   maxLevel = 0;
   numCells = 0;
-  while (!in_cells.eof()) {
+  if ((cell_file = fopen(cell_path, "r")) == NULL) {
+    fprintf(stderr, "iso: error: fail to open '%s'\n", cell_path);
+    exit(1);
+  }
+  if ((scalar_file = fopen(scalar_path, "r")) == NULL) {
+    fprintf(stderr, "iso: error: fail to open '%s'\n", scalar_path);
+    exit(1);
+  }
+  for (;;) {
     Cell cell;
-    in_cells.read((char *)&cell, sizeof(CellCoords));
-    in_scalars.read((char *)&cell.scalar, sizeof(float));
-    if (!(in_cells.good() && in_scalars.good()))
+    if (fread(&cell, sizeof(CellCoords), 1, cell_file) != 1)
+      break;
+    if (fread(&cell.scalar, sizeof(cell.scalar), 1, scalar_file) != 1)
       break;
     maxLevel = std::max(maxLevel, cell.level);
     h_cells.push_back(cell);
@@ -647,6 +652,14 @@ int main(int argc, char **argv) {
     bounds_upper = max(bounds_upper, cell.lower + vec3i(1 << cell.level));
     coordOrigin = min(coordOrigin, cell.lower);
     numCells++;
+  }
+  if (fclose(cell_file) != 0) {
+    fprintf(stderr, "cylinder: error: fail to close '%s'\n", cell_path);
+    exit(1);
+  }
+  if (fclose(scalar_file) != 0) {
+    fprintf(stderr, "cylinder: error: fail to close '%s'\n", scalar_path);
+    exit(1);
   }
   coordOrigin.x &= ~((1 << maxLevel) - 1);
   coordOrigin.y &= ~((1 << maxLevel) - 1);
@@ -726,37 +739,34 @@ int main(int argc, char **argv) {
     fprintf(stderr, "iso: error: fail to open '%s'\n", output_path);
     exit(1);
   }
-
-  float3 *vert;
-  int3 *tri;
-  int face[4];
-  long i, nvert, ntri;
   nvert = d_vertexArray.size();
   ntri = d_indexArray.size();
-  
-  vert = (float3*)malloc(nvert * sizeof *vert);
-  tri = (int3*)malloc(ntri * sizeof *tri);
+
+  if ((vert = (float3 *)malloc(nvert * sizeof *vert)) == NULL) {
+    fprintf(stderr, "iso: error: malloc failed\n");
+    exit(1);
+  }
+  if ((tri = (int3 *)malloc(ntri * sizeof *tri)) == NULL) {
+    fprintf(stderr, "iso: error: malloc failed\n");
+    exit(1);
+  }
   thrust::copy(d_vertexArray.begin(), d_vertexArray.end(), vert);
   thrust::copy(d_indexArray.begin(), d_indexArray.end(), tri);
-  fprintf(output_file, "ply\n"
-	 "format binary_little_endian 1.0\n"
-	 "element vertex %ld\n"
-	 "property float x\n"
-	 "property float y\n"
-	 "property float z\n"
-	 "element face %ld\n"
-	 "property list int int vertex_index\n"
-	 "end_header\n", nvert, ntri);
-  for (i = 0; i < nvert; i++) {
-    fprintf(stderr, "%g %g %g\n", vert[i].x, vert[i].y, vert[i].z);
-  }
-  for (i = 0; i < ntri; i++) {
-    fprintf(stderr, "%d %d %d\n", tri[i].x, tri[i].y, tri[i].z);
-  }  
+  fprintf(output_file,
+          "ply\n"
+          "format binary_little_endian 1.0\n"
+          "element vertex %ld\n"
+          "property float x\n"
+          "property float y\n"
+          "property float z\n"
+          "element face %ld\n"
+          "property list int int vertex_index\n"
+          "end_header\n",
+          nvert, ntri);
   if (fwrite(vert, nvert * sizeof *vert, 1, output_file) != 1) {
-      fprintf(stderr, "iso: error: fail to write '%s'\n", output_path);
-      exit(1);
-    }
+    fprintf(stderr, "iso: error: fail to write '%s'\n", output_path);
+    exit(1);
+  }
   for (i = 0; i < ntri; i++) {
     face[0] = 3;
     face[1] = tri[i].x;
