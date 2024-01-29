@@ -22,8 +22,6 @@ void cuda_safe_call(cudaError_t error, const std::string &message = "") {
     throw thrust::system_error(error, thrust::cuda_category(), message);
 }
 
-#define EXPLICIT_MORTON 1
-
 struct timer {
   cudaEvent_t start;
   cudaEvent_t end;
@@ -246,26 +244,6 @@ inline __host__ __device__ bool operator!=(const Cell &a, const Cell &b) {
   return !(a == b);
 }
 
-#if EXPLICIT_MORTON
-// ------------------------------------------------------------------
-// Explicit morton-ordered array
-// ------------------------------------------------------------------
-struct Morton {
-  uint64_t morton;
-  const Cell *cell;
-};
-
-struct CompareMorton {
-  inline __host__ __device__ bool operator()(const Morton &a, const Morton &b) {
-    return a.morton < b.morton;
-  }
-  inline __host__ __device__ bool operator()(const Morton &a,
-                                             const uint64_t b) {
-    return a.morton < b;
-  }
-};
-#endif
-
 // ------------------------------------------------------------------
 // "Fat" Triangle Vertex
 // ------------------------------------------------------------------
@@ -344,54 +322,14 @@ vec3i readInput(thrust::host_vector<Cell> &h_cells, int &maxLevel,
 
 struct AMR {
   __host__ __device__ inline AMR(
-#if EXPLICIT_MORTON
-      const Morton *const __restrict__ mortonArray,
-#endif
       const vec3i coordOrigin, const Cell *const __restrict__ cellArray,
       const int numCells, const int maxLevel)
       :
-#if EXPLICIT_MORTON
-        mortonArray(mortonArray),
-#endif
         coordOrigin(coordOrigin), cellArray(cellArray), numCells(numCells),
         maxLevel(maxLevel) {
   }
 
   __host__ __device__ bool findActual(Cell &result, const CellCoords &coords) {
-#if EXPLICIT_MORTON
-    const Morton *const __restrict__ begin = mortonArray;
-    const Morton *const __restrict__ end = mortonArray + numCells;
-
-    const Morton *it = thrust::system::detail::generic::scalar::lower_bound(
-        begin, end, mortonCode(coords.lower - coordOrigin), CompareMorton());
-
-    if (it == end)
-      return false;
-
-    const Cell found = *it->cell;
-    if ((found.lower >> max(coords.level, found.level)) ==
-        (coords.lower >> max(coords.level, found.level))
-        // &&
-        // (found.level >= coords.level)
-    ) {
-      result = found;
-      return true;
-    }
-
-    if (it > begin) {
-      const Cell found = *it[-1].cell;
-      if ((found.lower >> max(coords.level, found.level)) ==
-          (coords.lower >> max(coords.level, found.level))
-          // &&
-          // (found.level >= coords.level)
-      ) {
-        result = found;
-        return true;
-      }
-    }
-
-    return false;
-#else
     const Cell *const __restrict__ begin = cellArray;
     const Cell *const __restrict__ end = cellArray + numCells;
 
@@ -408,7 +346,6 @@ struct AMR {
     }
 
     return false;
-#endif
   }
 
   const Cell *const __restrict__ cellArray;
@@ -416,9 +353,6 @@ struct AMR {
   const int maxLevel;
   const vec3i coordOrigin;
 
-#if EXPLICIT_MORTON
-  const Morton *const __restrict__ mortonArray;
-#endif
 };
 
 __constant__ int8_t vtkMarchingCubesTriangleCases[256][16] = {
@@ -753,32 +687,12 @@ struct IsoExtractor {
   }
 };
 
-#if EXPLICIT_MORTON
-__global__ void buildMortonArray(Morton *const __restrict__ mortonArray,
-                                 const vec3i coordOrigin,
-                                 const Cell *const __restrict__ cellArray,
-                                 const int numCells) {
-  const size_t threadID = threadIdx.x + size_t(blockDim.x) * blockIdx.x;
-  if (threadID >= numCells)
-    return;
-  mortonArray[threadID].morton =
-      mortonCode(cellArray[threadID].lower - coordOrigin);
-  mortonArray[threadID].cell = &cellArray[threadID];
-}
-#endif
-
 __global__ void extractTriangles(
-#if EXPLICIT_MORTON
-    const Morton *const __restrict__ mortonArray,
-#endif
     const vec3i coordOrigin, const Cell *const __restrict__ cellArray,
     const int numCells, const int maxLevel, const float isoValue,
     TriangleVertex *__restrict__ outVertex, const int outVertexSize,
     int *p_numGeneratedTriangles) {
   AMR amr(
-#if EXPLICIT_MORTON
-      mortonArray,
-#endif
       coordOrigin, cellArray, numCells, maxLevel);
 
   const size_t threadID = threadIdx.x + size_t(blockDim.x) * blockIdx.x;
@@ -878,22 +792,8 @@ int main(int ac, char **av) {
   std::cout << "#cells uploaded, took " << time.elapsed() << "s" << std::endl;
 
   time.restart();
-#if EXPLICIT_MORTON
-  thrust::device_vector<Morton> d_mortonArray(h_cells.size());
-  {
-    size_t numJobs = h_cells.size();
-    int blockSize = 512;
-    int numBlocks = (numJobs + blockSize - 1) / blockSize;
-    buildMortonArray<<<numBlocks, blockSize>>>(
-        thrust::raw_pointer_cast(d_mortonArray.data()), coordOrigin,
-        thrust::raw_pointer_cast(d_cells.data()), d_cells.size());
-  }
-  cudaDeviceSynchronize();
-  thrust::sort(d_mortonArray.begin(), d_mortonArray.end(), CompareMorton());
-#else
   thrust::sort(d_cells.begin(), d_cells.end(),
                CompareByCoordsLowerOnly(coordOrigin));
-#endif
   cudaDeviceSynchronize();
   std::cout << "#sorted, took " << time.elapsed() << "s" << std::endl;
 
@@ -913,9 +813,6 @@ int main(int ac, char **av) {
     // std::cout << "launching with grid " << grid.x << " " << grid.y << "
     // blocksize " << blockSize << std::endl;
     extractTriangles<<<numBlocks, blockSize>>>(
-#if EXPLICIT_MORTON
-        thrust::raw_pointer_cast(d_mortonArray.data()),
-#endif
         coordOrigin, thrust::raw_pointer_cast(d_cells.data()), d_cells.size(),
         maxLevel, isoValue, thrust::raw_pointer_cast(d_triangleVertices.data()),
         d_triangleVertices.size(),
@@ -940,9 +837,6 @@ int main(int ac, char **av) {
     int numBlocks = (numJobs + blockSize - 1) / blockSize;
     extractTriangles<<<numBlocks, // dim3(1024,divUp(numBlocks,1024)),
                        blockSize>>>(
-#if EXPLICIT_MORTON
-        thrust::raw_pointer_cast(d_mortonArray.data()),
-#endif
         coordOrigin, thrust::raw_pointer_cast(d_cells.data()), d_cells.size(),
         maxLevel, isoValue, thrust::raw_pointer_cast(d_triangleVertices.data()),
         d_triangleVertices.size(),
@@ -951,18 +845,6 @@ int main(int ac, char **av) {
   cudaDeviceSynchronize();
   std::cout << "#first pass for actual generation, took " << time.elapsed()
             << "s" << std::endl;
-
-#if 0
-  std::ofstream dump("dump.obj");
-  thrust::host_vector<TriangleVertex> h_triangleVertices = d_triangleVertices;
-  for (int i=0;i<h_triangleVertices.size()/3;i++) {
-    for (int j=0;j<3;j++) {
-      vec3f v = h_triangleVertices[3*i+j].position;
-      dump << "v " << v.x << " "<< v.y << " " << v.z << std::endl;
-    }
-    dump << "f -1 -2 -3" << std::endl;
-  }
-#endif
 
   // ==================================================================
   // step 3: create vertex array
