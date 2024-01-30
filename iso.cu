@@ -612,14 +612,16 @@ int main(int argc, char **argv) {
   float isoValue;
   float3 *vert;
   int3 *tri;
-  int face[4], maxLevel;
-  long i, nvert, ntri, numCells;
-  FILE *output_file, *cell_file, *scalar_file;
-  const char *output_path, *cell_path, *scalar_path;
+  int maxLevel;
+  long j, nvert, ntri, numCells;
+  FILE *file, *cell_file, *scalar_file;
+  char xyz_path[FILENAME_MAX], tri_path[FILENAME_MAX], xdmf_path[FILENAME_MAX],
+      *xyz_base, *tri_base, *cell_path, *scalar_path, *output_path;
+
   thrust::host_vector<Cell> h_cells;
 
   if (argc != 5) {
-    fprintf(stderr, "cudaAmrIso in.cells in.scalars isoValue mesh.ply");
+    fprintf(stderr, "iso in.cells in.scalars isoValue mesh\n");
     exit(1);
   }
   cell_path = argv[1];
@@ -664,7 +666,6 @@ int main(int argc, char **argv) {
   coordOrigin.x &= ~((1 << maxLevel) - 1);
   coordOrigin.y &= ~((1 << maxLevel) - 1);
   coordOrigin.z &= ~((1 << maxLevel) - 1);
-  fprintf(stderr, "numCells: %ld %ld\n", numCells, h_cells.size());
   thrust::device_vector<Cell> d_cells = h_cells;
   cudaDeviceSynchronize();
   thrust::sort(d_cells.begin(), d_cells.end(),
@@ -734,14 +735,8 @@ int main(int argc, char **argv) {
         thrust::raw_pointer_cast(d_indexArray.data()));
   }
   cudaDeviceSynchronize();
-
-  if ((output_file = fopen(output_path, "w")) == NULL) {
-    fprintf(stderr, "iso: error: fail to open '%s'\n", output_path);
-    exit(1);
-  }
   nvert = d_vertexArray.size();
   ntri = d_indexArray.size();
-
   if ((vert = (float3 *)malloc(nvert * sizeof *vert)) == NULL) {
     fprintf(stderr, "iso: error: malloc failed\n");
     exit(1);
@@ -752,33 +747,75 @@ int main(int argc, char **argv) {
   }
   thrust::copy(d_vertexArray.begin(), d_vertexArray.end(), vert);
   thrust::copy(d_indexArray.begin(), d_indexArray.end(), tri);
-  fprintf(output_file,
-          "ply\n"
-          "format binary_little_endian 1.0\n"
-          "element vertex %ld\n"
-          "property float x\n"
-          "property float y\n"
-          "property float z\n"
-          "element face %ld\n"
-          "property list int int vertex_index\n"
-          "end_header\n",
-          nvert, ntri);
-  if (fwrite(vert, nvert * sizeof *vert, 1, output_file) != 1) {
-    fprintf(stderr, "iso: error: fail to write '%s'\n", output_path);
-    exit(1);
-  }
-  for (i = 0; i < ntri; i++) {
-    face[0] = 3;
-    face[1] = tri[i].x;
-    face[2] = tri[i].y;
-    face[3] = tri[i].z;
-    if (fwrite(face, sizeof face, 1, output_file) != 1) {
-      fprintf(stderr, "iso: error: fail to write '%s'\n", output_path);
-      exit(1);
+
+  snprintf(xyz_path, sizeof xyz_path, "%s.xyz.raw", output_path);
+  snprintf(tri_path, sizeof tri_path, "%s.tri.raw", output_path);
+  snprintf(xdmf_path, sizeof xdmf_path, "%s.xdmf2", output_path);
+  xyz_base = xyz_path;
+  tri_base = tri_path;
+  for (j = 0; xyz_path[j] != '\0'; j++) {
+    if (xyz_path[j] == '/' && xyz_path[j + 1] != '\0') {
+      xyz_base = &xyz_path[j + 1];
+      tri_base = &tri_path[j + 1];
     }
   }
-  if (fclose(output_file) != 0) {
-    fprintf(stderr, "cylinder: error: fail to close '%s'\n", output_path);
+  if ((file = fopen(xyz_path, "w")) == NULL) {
+    fprintf(stderr, "iso: error: fail to open '%s'\n", xyz_path);
+    exit(1);
+  }
+  if (fwrite(vert, nvert * sizeof *vert, 1, file) != 1) {
+    fprintf(stderr, "iso: error: fail to write '%s'\n", xyz_path);
+    exit(1);
+  }
+  if (fclose(file) != 0) {
+    fprintf(stderr, "iso: fail to close '%s'\n", xyz_path);
+    exit(1);
+  }
+  if ((file = fopen(tri_path, "w")) == NULL) {
+    fprintf(stderr, "iso: error: fail to open '%s'\n", tri_path);
+    exit(1);
+  }
+  if (fwrite(tri, ntri * sizeof *tri, 1, file) != 1) {
+    fprintf(stderr, "iso: error: fail to write '%s'\n", tri_path);
+    exit(1);
+  }
+  if (fclose(file) != 0) {
+    fprintf(stderr, "iso: fail to close '%s'\n", tri_path);
+    exit(1);
+  }
+  if ((file = fopen(xdmf_path, "w")) == NULL) {
+    fprintf(stderr, "iso: error: fail to open '%s'\n", xdmf_path);
+    exit(1);
+  }
+  fprintf(file,
+          "<Xdmf\n"
+          "    Version=\"2\">\n"
+          "  <Domain>\n"
+          "    <Grid>\n"
+          "      <Topology\n"
+          "         TopologyType=\"Triangle\"\n"
+          "         Dimensions=\"%ld\">\n"
+          "        <DataItem\n"
+          "            Dimensions=\"%ld 3\"\n"
+          "            NumberType=\"Int\"\n"
+          "            Format=\"Binary\">\n"
+          "          %s\n"
+          "        </DataItem>\n"
+          "      </Topology>\n"
+          "      <Geometry>\n"
+          "        <DataItem\n"
+          "            Dimensions=\"%ld 3\"\n"
+          "            Precision=\"4\"\n"
+          "            Format=\"Binary\">\n"
+          "          %s\n"
+          "        </DataItem>\n"
+          "      </Geometry>\n"
+          "    </Grid>\n"
+          "  </Domain>\n"
+          "</Xdmf>\n",
+          ntri, ntri, tri_base, nvert, xyz_base);
+  if (fclose(file) != 0) {
+    fprintf(stderr, "iso: fail to close '%s'\n", xdmf_path);
     exit(1);
   }
 }
