@@ -810,10 +810,18 @@ int main(int argc, char **argv) {
           "          %s\n"
           "        </DataItem>\n"
           "      </Geometry>\n"
+          "      <Attribute>\n"
+          "        <DataItem\n"
+          "            Dimensions=\"%ld\"\n"
+          "            Precision=\"4\"\n"
+          "            Format=\"Binary\">\n"
+          "          %s\n"
+          "        </DataItem>\n"
+          "      </Attribute>\n"
           "    </Grid>\n"
           "  </Domain>\n"
           "</Xdmf>\n",
-          ntri, ntri, tri_base, nvert, xyz_base);
+          ntri, ntri, tri_base, nvert, xyz_base, nvert, xyz_base);
   if (fclose(file) != 0) {
     fprintf(stderr, "iso: fail to close '%s'\n", xdmf_path);
     exit(1);
