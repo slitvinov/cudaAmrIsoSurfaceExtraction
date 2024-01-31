@@ -6,3 +6,4 @@ iso: iso.cu
 
 clean:
 	rm -f iso
+iso: table.inc
