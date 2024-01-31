@@ -1,16 +1,10 @@
+#include "table.inc"
 #include <cuda.h>
-#include <fstream>
-#include <iostream>
-#include <stdexcept>
 #include <stdio.h>
 #include <thrust/binary_search.h>
 #include <thrust/device_vector.h>
-#include <thrust/execution_policy.h>
-#include <thrust/functional.h>
-#include <thrust/generate.h>
 #include <thrust/host_vector.h>
 #include <thrust/sort.h>
-#include "table.inc"
 
 struct vec3i {
   __host__ __device__ vec3i() {}
