@@ -3,7 +3,6 @@
 #include <stdio.h>
 #include <thrust/binary_search.h>
 #include <thrust/device_vector.h>
-#include <thrust/host_vector.h>
 #include <thrust/sort.h>
 
 struct vec3i {
@@ -340,6 +339,15 @@ createVertexArray(int *p_atomicCounter,
   }
 }
 
+static vec3i coordOrigin;
+static int comp(const void *av, const void *bv) {
+  struct Cell *a, *b;
+  a = (struct Cell *)av;
+  b = (struct Cell *)bv;
+  return mortonCode(a->lower - coordOrigin) -
+         mortonCode(b->lower - coordOrigin);
+}
+
 int main(int argc, char **argv) {
   float isoValue;
   float3 *vert;
@@ -359,8 +367,7 @@ int main(int argc, char **argv) {
   scalar_path = argv[2];
   isoValue = std::stof(argv[3]);
   output_path = argv[4];
-
-  vec3i coordOrigin(1 << 30);
+  coordOrigin = 1 << 30;
   vec3i bounds_lower(1 << 30);
   vec3i bounds_upper(-(1 << 30));
   maxLevel = 0;
@@ -412,15 +419,12 @@ int main(int argc, char **argv) {
   coordOrigin.x &= ~((1 << maxLevel) - 1);
   coordOrigin.y &= ~((1 << maxLevel) - 1);
   coordOrigin.z &= ~((1 << maxLevel) - 1);
+  qsort(cells, numCells, sizeof *cells, comp);
   thrust::device_vector<Cell> d_cells(numCells);
   thrust::copy(cells, cells + numCells, d_cells.begin());
   cudaDeviceSynchronize();
-  thrust::sort(d_cells.begin(), d_cells.end(),
-               CompareByCoordsLowerOnly(coordOrigin));
-  cudaDeviceSynchronize();
   thrust::device_vector<int> d_atomicCounter(1);
   thrust::device_vector<TriangleVertex> d_triangleVertices(0);
-
   {
     d_atomicCounter[0] = 0;
     size_t numJobs = 8 * numCells;
