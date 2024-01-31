@@ -345,13 +345,12 @@ int main(int argc, char **argv) {
   float3 *vert;
   int3 *tri;
   int maxLevel;
-  long j, nvert, ntri, numCells;
+  long i, j, nvert, ntri, numCells, size;
   FILE *file, *cell_file, *scalar_file;
+  int cell[4];
   char xyz_path[FILENAME_MAX], tri_path[FILENAME_MAX], xdmf_path[FILENAME_MAX],
       *xyz_base, *tri_base, *cell_path, *scalar_path, *output_path;
-
-  thrust::host_vector<Cell> h_cells;
-
+  struct Cell *cells;
   if (argc != 5) {
     fprintf(stderr, "iso in.cells in.scalars isoValue mesh\n");
     exit(1);
@@ -374,18 +373,33 @@ int main(int argc, char **argv) {
     fprintf(stderr, "iso: error: fail to open '%s'\n", scalar_path);
     exit(1);
   }
-  for (;;) {
-    Cell cell;
-    if (fread(&cell, sizeof(CellCoords), 1, cell_file) != 1)
-      break;
-    if (fread(&cell.scalar, sizeof(cell.scalar), 1, scalar_file) != 1)
-      break;
-    maxLevel = std::max(maxLevel, cell.level);
-    h_cells.push_back(cell);
-    bounds_lower = min(bounds_lower, cell.lower);
-    bounds_upper = max(bounds_upper, cell.lower + vec3i(1 << cell.level));
-    coordOrigin = min(coordOrigin, cell.lower);
-    numCells++;
+  fseek(cell_file, 0, SEEK_END);
+  size = ftell(cell_file);
+  fseek(cell_file, 0, SEEK_SET);
+  numCells = size / (4 * sizeof(int));
+  fprintf(stderr, "%ld\n", numCells);
+  if ((cells = (Cell *)malloc(numCells * sizeof *cells)) == NULL) {
+    fprintf(stderr, "iso: error: malloc failed\n");
+    exit(1);
+  }
+  for (i = 0; i < numCells; i++) {
+    if (fread(cell, sizeof(cell), 1, cell_file) != 1) {
+      fprintf(stderr, "iso: error: fail to read '%s'\n", cell_path);
+      exit(1);
+    }
+    cells[i].lower.x = cell[0];
+    cells[i].lower.y = cell[1];
+    cells[i].lower.z = cell[2];
+    cells[i].level = cell[3];
+    if (fread(&cells[i].scalar, sizeof(cells[i].scalar), 1, scalar_file) != 1) {
+      fprintf(stderr, "iso: error: fail to read '%s'\n", scalar_path);
+      exit(1);
+    }
+    maxLevel = std::max(maxLevel, cells[i].level);
+    bounds_lower = min(bounds_lower, cells[i].lower);
+    bounds_upper =
+        max(bounds_upper, cells[i].lower + vec3i(1 << cells[i].level));
+    coordOrigin = min(coordOrigin, cells[i].lower);
   }
   if (fclose(cell_file) != 0) {
     fprintf(stderr, "cylinder: error: fail to close '%s'\n", cell_path);
@@ -398,7 +412,8 @@ int main(int argc, char **argv) {
   coordOrigin.x &= ~((1 << maxLevel) - 1);
   coordOrigin.y &= ~((1 << maxLevel) - 1);
   coordOrigin.z &= ~((1 << maxLevel) - 1);
-  thrust::device_vector<Cell> d_cells = h_cells;
+  thrust::device_vector<Cell> d_cells(numCells);
+  thrust::copy(cells, cells + numCells, d_cells.begin());
   cudaDeviceSynchronize();
   thrust::sort(d_cells.begin(), d_cells.end(),
                CompareByCoordsLowerOnly(coordOrigin));
@@ -408,7 +423,7 @@ int main(int argc, char **argv) {
 
   {
     d_atomicCounter[0] = 0;
-    size_t numJobs = 8 * h_cells.size();
+    size_t numJobs = 8 * numCells;
     int blockSize = 512;
     int numBlocks = (numJobs + blockSize - 1) / blockSize;
     extractTriangles<<<numBlocks, blockSize>>>(
@@ -423,7 +438,7 @@ int main(int argc, char **argv) {
 
   {
     d_atomicCounter[0] = 0;
-    size_t numJobs = 8 * h_cells.size();
+    size_t numJobs = 8 * numCells;
     int blockSize = 512;
     int numBlocks = (numJobs + blockSize - 1) / blockSize;
     extractTriangles<<<numBlocks, // dim3(1024,divUp(numBlocks,1024)),
@@ -467,8 +482,8 @@ int main(int argc, char **argv) {
         thrust::raw_pointer_cast(d_indexArray.data()));
   }
   cudaDeviceSynchronize();
-  nvert = d_vertexArray.size();
   ntri = d_indexArray.size();
+  nvert = d_vertexArray.size();
   if ((vert = (float3 *)malloc(nvert * sizeof *vert)) == NULL) {
     fprintf(stderr, "iso: error: malloc failed\n");
     exit(1);
