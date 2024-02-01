@@ -123,7 +123,7 @@ struct Cell : public CellCoords {
   __device__ __host__ float4 asDualVertex() const {
     return make_float4(center().x, center().y, center().z, scalar);
   }
-  float scalar;
+  float scalar, field;
 };
 
 __host__ __device__ bool operator==(const Cell &a, const Cell &b) {
@@ -354,20 +354,21 @@ int main(int argc, char **argv) {
   int3 *tri;
   int maxLevel;
   long i, j, nvert, ntri, numCells, size;
-  FILE *file, *cell_file, *scalar_file;
+  FILE *file, *cell_file, *scalar_file, *field_file;
   int cell[4];
   char attr_path[FILENAME_MAX], xyz_path[FILENAME_MAX], tri_path[FILENAME_MAX],
       xdmf_path[FILENAME_MAX], *attr_base, *xyz_base, *tri_base, *cell_path,
-      *scalar_path, *output_path;
+      *scalar_path, *field_path, *output_path;
   struct Cell *cells;
-  if (argc != 5) {
-    fprintf(stderr, "iso in.cells in.scalars isoValue mesh\n");
+  if (argc != 6) {
+    fprintf(stderr, "iso in.cells in.scalars in.field isoValue mesh\n");
     exit(1);
   }
   cell_path = argv[1];
   scalar_path = argv[2];
-  isoValue = std::stof(argv[3]);
-  output_path = argv[4];
+  field_path = argv[3];
+  isoValue = std::stof(argv[4]);
+  output_path = argv[5];
   coordOrigin = 1 << 30;
   vec3i bounds_lower(1 << 30);
   vec3i bounds_upper(-(1 << 30));
@@ -381,11 +382,15 @@ int main(int argc, char **argv) {
     fprintf(stderr, "iso: error: fail to open '%s'\n", scalar_path);
     exit(1);
   }
+  if ((field_file = fopen(field_path, "r")) == NULL) {
+    fprintf(stderr, "iso: error: fail to open '%s'\n", field_path);
+    exit(1);
+  }
   fseek(cell_file, 0, SEEK_END);
   size = ftell(cell_file);
   fseek(cell_file, 0, SEEK_SET);
   numCells = size / (4 * sizeof(int));
-  fprintf(stderr, "%ld\n", numCells);
+  // fprintf(stderr, "%ld\n", numCells);
   if ((cells = (Cell *)malloc(numCells * sizeof *cells)) == NULL) {
     fprintf(stderr, "iso: error: malloc failed\n");
     exit(1);
@@ -403,6 +408,10 @@ int main(int argc, char **argv) {
       fprintf(stderr, "iso: error: fail to read '%s'\n", scalar_path);
       exit(1);
     }
+    if (fread(&cells[i].field, sizeof(cells[i].field), 1, field_file) != 1) {
+      fprintf(stderr, "iso: error: fail to read '%s'\n", field_path);
+      exit(1);
+    }
     maxLevel = std::max(maxLevel, cells[i].level);
     bounds_lower = min(bounds_lower, cells[i].lower);
     bounds_upper =
@@ -415,6 +424,10 @@ int main(int argc, char **argv) {
   }
   if (fclose(scalar_file) != 0) {
     fprintf(stderr, "cylinder: error: fail to close '%s'\n", scalar_path);
+    exit(1);
+  }
+  if (fclose(field_file) != 0) {
+    fprintf(stderr, "cylinder: error: fail to close '%s'\n", field_path);
     exit(1);
   }
   coordOrigin.x &= ~((1 << maxLevel) - 1);
@@ -544,8 +557,36 @@ int main(int argc, char **argv) {
     exit(1);
   }
 
-  for (j = 0; j < nvert; j++)
-    attr[j] = vert[j].z;
+  long nlost;
+  int level, Found;
+  Cell needl, *result;
+  nlost = 0;
+  for (j = 0; j < nvert; j++) {
+    Found = 0;
+    needl.lower.x = vert[j].x;
+    needl.lower.y = vert[j].y;
+    needl.lower.z = vert[j].z;
+    for (level = 0; level <= maxLevel; level++) {
+      result = (Cell *)bsearch(&needl, cells, numCells, sizeof(Cell), comp);
+      if (result != NULL) {
+        Found = 1;
+        break;
+      }
+      needl.lower.x >>= level;
+      needl.lower.x <<= level;
+      needl.lower.y >>= level;
+      needl.lower.y <<= level;
+      needl.lower.z >>= level;
+      needl.lower.z <<= level;
+    }
+    if (Found)
+      attr[j] = result->field;
+    else {
+      nlost++;
+      attr[j] = 0;
+    }
+  }
+  fprintf(stderr, "iso: nlost/nvert: %ld/%ld\n", nlost, nvert);
 
   if ((file = fopen(attr_path, "w")) == NULL) {
     fprintf(stderr, "iso: error: fail to open '%s'\n", attr_path);
