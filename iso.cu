@@ -349,15 +349,16 @@ static int comp(const void *av, const void *bv) {
 }
 
 int main(int argc, char **argv) {
-  float isoValue;
+  float isoValue, *attr;
   float3 *vert;
   int3 *tri;
   int maxLevel;
   long i, j, nvert, ntri, numCells, size;
   FILE *file, *cell_file, *scalar_file;
   int cell[4];
-  char xyz_path[FILENAME_MAX], tri_path[FILENAME_MAX], xdmf_path[FILENAME_MAX],
-      *xyz_base, *tri_base, *cell_path, *scalar_path, *output_path;
+  char attr_path[FILENAME_MAX], xyz_path[FILENAME_MAX], tri_path[FILENAME_MAX],
+      xdmf_path[FILENAME_MAX], *attr_base, *xyz_base, *tri_base, *cell_path,
+      *scalar_path, *output_path;
   struct Cell *cells;
   if (argc != 5) {
     fprintf(stderr, "iso in.cells in.scalars isoValue mesh\n");
@@ -501,13 +502,16 @@ int main(int argc, char **argv) {
 
   snprintf(xyz_path, sizeof xyz_path, "%s.xyz.raw", output_path);
   snprintf(tri_path, sizeof tri_path, "%s.tri.raw", output_path);
+  snprintf(attr_path, sizeof attr_path, "%s.attr.raw", output_path);
   snprintf(xdmf_path, sizeof xdmf_path, "%s.xdmf2", output_path);
   xyz_base = xyz_path;
   tri_base = tri_path;
+  attr_base = attr_path;
   for (j = 0; xyz_path[j] != '\0'; j++) {
     if (xyz_path[j] == '/' && xyz_path[j + 1] != '\0') {
       xyz_base = &xyz_path[j + 1];
       tri_base = &tri_path[j + 1];
+      attr_base = &attr_path[j + 1];
     }
   }
   if ((file = fopen(xyz_path, "w")) == NULL) {
@@ -534,6 +538,32 @@ int main(int argc, char **argv) {
     fprintf(stderr, "iso: fail to close '%s'\n", tri_path);
     exit(1);
   }
+
+  if ((attr = (float *)malloc(nvert * sizeof *attr)) == NULL) {
+    fprintf(stderr, "iso: error: malloc failed\n");
+    exit(1);
+  }
+
+  for (j = 0; j < nvert; j++)
+    attr[j] = vert[j].z;
+
+  if ((file = fopen(attr_path, "w")) == NULL) {
+    fprintf(stderr, "iso: error: fail to open '%s'\n", attr_path);
+    exit(1);
+  }
+  if (fwrite(attr, nvert * sizeof *attr, 1, file) != 1) {
+    fprintf(stderr, "iso: error: fail to write '%s'\n", attr_path);
+    exit(1);
+  }
+  if (fclose(file) != 0) {
+    fprintf(stderr, "iso: fail to close '%s'\n", attr_path);
+    exit(1);
+  }
+  free(vert);
+  free(tri);
+  free(cells);
+  free(attr);
+
   if ((file = fopen(xdmf_path, "w")) == NULL) {
     fprintf(stderr, "iso: error: fail to open '%s'\n", xdmf_path);
     exit(1);
@@ -572,7 +602,7 @@ int main(int argc, char **argv) {
           "    </Grid>\n"
           "  </Domain>\n"
           "</Xdmf>\n",
-          ntri, ntri, tri_base, nvert, xyz_base, nvert, xyz_base);
+          ntri, ntri, tri_base, nvert, xyz_base, nvert, attr_base);
   if (fclose(file) != 0) {
     fprintf(stderr, "iso: fail to close '%s'\n", xdmf_path);
     exit(1);
