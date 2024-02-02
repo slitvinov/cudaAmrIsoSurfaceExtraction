@@ -135,6 +135,21 @@ __host__ __device__ bool operator!=(const Cell &a, const Cell &b) {
   return !(a == b);
 }
 
+struct Morton {
+  uint64_t morton;
+  const Cell *cell;
+};
+
+struct CompareMorton {
+  inline __host__ __device__ bool operator()(const Morton &a, const Morton &b) {
+    return a.morton < b.morton;
+  }
+  inline __host__ __device__ bool operator()(const Morton &a,
+                                             const uint64_t b) {
+    return a.morton < b;
+  }
+};
+
 struct TriangleVertex {
   vec3f position;
   uint32_t triangleAndVertexID;
@@ -162,36 +177,66 @@ struct CompareVertices {
 };
 
 struct AMR {
-  __host__ __device__ AMR(const vec3i coordOrigin,
+  __host__ __device__ AMR(const Morton *const __restrict__ mortonArray,
+                          const vec3i coordOrigin,
                           const Cell *const __restrict__ cellArray,
                           const int numCells, const int maxLevel)
-      : coordOrigin(coordOrigin), cellArray(cellArray), numCells(numCells),
-        maxLevel(maxLevel) {}
+      : mortonArray(mortonArray), coordOrigin(coordOrigin),
+        cellArray(cellArray), numCells(numCells), maxLevel(maxLevel) {}
 
   __host__ __device__ bool findActual(Cell &result, const CellCoords &coords) {
-    const Cell *const __restrict__ begin = cellArray;
-    const Cell *const __restrict__ end = cellArray + numCells;
+    const Morton *const __restrict__ begin = mortonArray;
+    const Morton *const __restrict__ end = mortonArray + numCells;
 
-    const Cell *it = thrust::system::detail::generic::scalar::lower_bound(
-        begin, end, coords, CompareByCoordsLowerOnly(coordOrigin));
+    const Morton *it = thrust::system::detail::generic::scalar::lower_bound(
+        begin, end, mortonCode(coords.lower - coordOrigin), CompareMorton());
 
     if (it == end)
       return false;
 
-    if ((it->lower >> it->level) == (coords.lower >> it->level) &&
-        (it->level >= coords.level)) {
-      result = *it;
+    const Cell found = *it->cell;
+    if ((found.lower >> max(coords.level, found.level)) ==
+        (coords.lower >> max(coords.level, found.level))
+        // &&
+        // (found.level >= coords.level)
+    ) {
+      result = found;
       return true;
     }
 
+    if (it > begin) {
+      const Cell found = *it[-1].cell;
+      if ((found.lower >> max(coords.level, found.level)) ==
+          (coords.lower >> max(coords.level, found.level))
+          // &&
+          // (found.level >= coords.level)
+      ) {
+        result = found;
+        return true;
+      }
+    }
+
     return false;
-  }
+  };
 
   const Cell *const __restrict__ cellArray;
   const int numCells;
   const int maxLevel;
   const vec3i coordOrigin;
+  const Morton *const __restrict__ mortonArray;
 };
+
+__global__ void buildMortonArray(Morton *const __restrict__ mortonArray,
+                                 const vec3i coordOrigin,
+                                 const Cell *const __restrict__ cellArray,
+                                 const int numCells) {
+  const size_t threadID = threadIdx.x + size_t(blockDim.x) * blockIdx.x;
+  if (threadID >= numCells)
+    return;
+  mortonArray[threadID].morton =
+      mortonCode(cellArray[threadID].lower - coordOrigin);
+  mortonArray[threadID].cell = &cellArray[threadID];
+}
 
 struct IsoExtractor {
   __device__ __host__ IsoExtractor(const float isoValue,
@@ -260,14 +305,15 @@ struct IsoExtractor {
   }
 };
 
-__global__ void extractTriangles(const vec3i coordOrigin,
+__global__ void extractTriangles(const Morton *const __restrict__ mortonArray,
+                                 const vec3i coordOrigin,
                                  const Cell *const __restrict__ cellArray,
                                  const int numCells, const int maxLevel,
                                  const float isoValue,
                                  TriangleVertex *__restrict__ outVertex,
                                  const int outVertexSize,
                                  int *p_numGeneratedTriangles) {
-  AMR amr(coordOrigin, cellArray, numCells, maxLevel);
+  AMR amr(mortonArray, coordOrigin, cellArray, numCells, maxLevel);
 
   const size_t threadID = threadIdx.x + size_t(blockDim.x) * blockIdx.x;
 
@@ -456,8 +502,21 @@ int main(int argc, char **argv) {
   coordOrigin.x &= ~((1 << maxLevel) - 1);
   coordOrigin.y &= ~((1 << maxLevel) - 1);
   coordOrigin.z &= ~((1 << maxLevel) - 1);
+
   qsort(cells, numCells, sizeof *cells, comp);
   thrust::device_vector<Cell> d_cells{cells, cells + numCells};
+  thrust::device_vector<Morton> d_mortonArray(numCells);
+  {
+    size_t numJobs = numCells;
+    int blockSize = 512;
+    int numBlocks = (numJobs + blockSize - 1) / blockSize;
+    buildMortonArray<<<numBlocks, blockSize>>>(
+        thrust::raw_pointer_cast(d_mortonArray.data()), coordOrigin,
+        thrust::raw_pointer_cast(d_cells.data()), d_cells.size());
+  }
+  cudaDeviceSynchronize();
+  thrust::sort(d_mortonArray.begin(), d_mortonArray.end(), CompareMorton());
+
   cudaDeviceSynchronize();
   thrust::device_vector<int> d_atomicCounter(1);
   thrust::device_vector<TriangleVertex> d_triangleVertices(0);
@@ -466,8 +525,9 @@ int main(int argc, char **argv) {
   blockSize = 512;
   numBlocks = (numJobs + blockSize - 1) / blockSize;
   extractTriangles<<<numBlocks, blockSize>>>(
-      coordOrigin, thrust::raw_pointer_cast(d_cells.data()), d_cells.size(),
-      maxLevel, isoValue, thrust::raw_pointer_cast(d_triangleVertices.data()),
+      thrust::raw_pointer_cast(d_mortonArray.data()), coordOrigin,
+      thrust::raw_pointer_cast(d_cells.data()), d_cells.size(), maxLevel,
+      isoValue, thrust::raw_pointer_cast(d_triangleVertices.data()),
       d_triangleVertices.size(),
       thrust::raw_pointer_cast(d_atomicCounter.data()));
   cudaDeviceSynchronize();
@@ -478,8 +538,9 @@ int main(int argc, char **argv) {
   blockSize = 512;
   numBlocks = (numJobs + blockSize - 1) / blockSize;
   extractTriangles<<<numBlocks, blockSize>>>(
-      coordOrigin, thrust::raw_pointer_cast(d_cells.data()), d_cells.size(),
-      maxLevel, isoValue, thrust::raw_pointer_cast(d_triangleVertices.data()),
+      thrust::raw_pointer_cast(d_mortonArray.data()), coordOrigin,
+      thrust::raw_pointer_cast(d_cells.data()), d_cells.size(), maxLevel,
+      isoValue, thrust::raw_pointer_cast(d_triangleVertices.data()),
       d_triangleVertices.size(),
       thrust::raw_pointer_cast(d_atomicCounter.data()));
   cudaDeviceSynchronize();
