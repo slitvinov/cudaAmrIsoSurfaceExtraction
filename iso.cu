@@ -352,23 +352,45 @@ int main(int argc, char **argv) {
   float isoValue, *attr;
   float3 *vert;
   int3 *tri;
-  int maxLevel;
-  long i, j, nvert, ntri, numCells, size;
+  size_t numJobs;
+  int maxLevel, level, Found, blockSize, numBlocks;
+  long i, j, nvert, ntri, numCells, size, nlost;
   FILE *file, *cell_file, *scalar_file, *field_file;
   int cell[4];
   char attr_path[FILENAME_MAX], xyz_path[FILENAME_MAX], tri_path[FILENAME_MAX],
       xdmf_path[FILENAME_MAX], *attr_base, *xyz_base, *tri_base, *cell_path,
-      *scalar_path, *field_path, *output_path;
-  struct Cell *cells;
+      *scalar_path, *field_path, *output_path, *end;
+  struct Cell needl, *cells, *result;
+
   if (argc != 6) {
     fprintf(stderr, "iso in.cells in.scalars in.field isoValue mesh\n");
     exit(1);
   }
-  cell_path = argv[1];
-  scalar_path = argv[2];
-  field_path = argv[3];
-  isoValue = std::stof(argv[4]);
-  output_path = argv[5];
+  if ((cell_path = argv[1]) == NULL) {
+    fprintf(stderr, "iso: error: in.cells is not given\n");
+    exit(1);
+  }
+  if ((scalar_path = argv[2]) == NULL) {
+    fprintf(stderr, "iso: error: in.scalar is not given\n");
+    exit(1);
+  }
+  if ((field_path = argv[3]) == NULL) {
+    fprintf(stderr, "iso: error: in.field is not given\n");
+    exit(1);
+  }
+  if (argv[4] == NULL) {
+    fprintf(stderr, "iso: error: isoValue is no given\n");
+    exit(1);
+  }
+  isoValue = strtod(argv[4], &end);
+  if (*end != '\0') {
+    fprintf(stderr, "iso: error: '%s' is not a number\n", *argv);
+    exit(1);
+  }
+  if ((output_path = argv[5]) == NULL) {
+    fprintf(stderr, "iso: error: out.mesh is not given\n");
+    exit(1);
+  }
   coordOrigin = 1 << 30;
   vec3i bounds_lower(1 << 30);
   vec3i bounds_upper(-(1 << 30));
@@ -390,7 +412,8 @@ int main(int argc, char **argv) {
   size = ftell(cell_file);
   fseek(cell_file, 0, SEEK_SET);
   numCells = size / (4 * sizeof(int));
-  // fprintf(stderr, "%ld\n", numCells);
+  fprintf(stderr, "iso: isoValue: %g\n", isoValue);
+  fprintf(stderr, "iso: numCells: %ld\n", numCells);
   if ((cells = (Cell *)malloc(numCells * sizeof *cells)) == NULL) {
     fprintf(stderr, "iso: error: malloc failed\n");
     exit(1);
@@ -434,74 +457,61 @@ int main(int argc, char **argv) {
   coordOrigin.y &= ~((1 << maxLevel) - 1);
   coordOrigin.z &= ~((1 << maxLevel) - 1);
   qsort(cells, numCells, sizeof *cells, comp);
-  thrust::device_vector<Cell> d_cells(numCells);
-  thrust::copy(cells, cells + numCells, d_cells.begin());
+  thrust::device_vector<Cell> d_cells{cells, cells + numCells};
   cudaDeviceSynchronize();
   thrust::device_vector<int> d_atomicCounter(1);
   thrust::device_vector<TriangleVertex> d_triangleVertices(0);
-  {
-    d_atomicCounter[0] = 0;
-    size_t numJobs = 8 * numCells;
-    int blockSize = 512;
-    int numBlocks = (numJobs + blockSize - 1) / blockSize;
-    extractTriangles<<<numBlocks, blockSize>>>(
-        coordOrigin, thrust::raw_pointer_cast(d_cells.data()), d_cells.size(),
-        maxLevel, isoValue, thrust::raw_pointer_cast(d_triangleVertices.data()),
-        d_triangleVertices.size(),
-        thrust::raw_pointer_cast(d_atomicCounter.data()));
-  }
+  d_atomicCounter[0] = 0;
+  numJobs = 8 * numCells;
+  blockSize = 512;
+  numBlocks = (numJobs + blockSize - 1) / blockSize;
+  extractTriangles<<<numBlocks, blockSize>>>(
+      coordOrigin, thrust::raw_pointer_cast(d_cells.data()), d_cells.size(),
+      maxLevel, isoValue, thrust::raw_pointer_cast(d_triangleVertices.data()),
+      d_triangleVertices.size(),
+      thrust::raw_pointer_cast(d_atomicCounter.data()));
   cudaDeviceSynchronize();
-  int numTriangles = d_atomicCounter[0];
-  d_triangleVertices.resize(3 * numTriangles);
-
-  {
-    d_atomicCounter[0] = 0;
-    size_t numJobs = 8 * numCells;
-    int blockSize = 512;
-    int numBlocks = (numJobs + blockSize - 1) / blockSize;
-    extractTriangles<<<numBlocks, // dim3(1024,divUp(numBlocks,1024)),
-                       blockSize>>>(
-        coordOrigin, thrust::raw_pointer_cast(d_cells.data()), d_cells.size(),
-        maxLevel, isoValue, thrust::raw_pointer_cast(d_triangleVertices.data()),
-        d_triangleVertices.size(),
-        thrust::raw_pointer_cast(d_atomicCounter.data()));
-  }
+  ntri = d_atomicCounter[0];
+  d_triangleVertices.resize(3 * ntri);
+  d_atomicCounter[0] = 0;
+  numJobs = 8 * numCells;
+  blockSize = 512;
+  numBlocks = (numJobs + blockSize - 1) / blockSize;
+  extractTriangles<<<numBlocks, blockSize>>>(
+      coordOrigin, thrust::raw_pointer_cast(d_cells.data()), d_cells.size(),
+      maxLevel, isoValue, thrust::raw_pointer_cast(d_triangleVertices.data()),
+      d_triangleVertices.size(),
+      thrust::raw_pointer_cast(d_atomicCounter.data()));
   cudaDeviceSynchronize();
   thrust::sort(d_triangleVertices.begin(), d_triangleVertices.end(),
                CompareVertices());
   cudaDeviceSynchronize();
   thrust::device_vector<float3> d_vertexArray(0);
-  thrust::device_vector<int3> d_indexArray(numTriangles);
-  {
-    d_atomicCounter[0] = 0;
-    int numJobs = 3 * numTriangles;
-    int blockSize = 512;
-    int numBlocks = (numJobs + blockSize - 1) / blockSize;
-    createVertexArray<<<numBlocks, blockSize>>>(
-        thrust::raw_pointer_cast(d_atomicCounter.data()),
-        thrust::raw_pointer_cast(d_triangleVertices.data()),
-        d_triangleVertices.size(),
-        thrust::raw_pointer_cast(d_vertexArray.data()), d_vertexArray.size(),
-        thrust::raw_pointer_cast(d_indexArray.data()));
-  }
+  thrust::device_vector<int3> d_indexArray(ntri);
+  d_atomicCounter[0] = 0;
+  numJobs = 3 * ntri;
+  blockSize = 512;
+  numBlocks = (numJobs + blockSize - 1) / blockSize;
+  createVertexArray<<<numBlocks, blockSize>>>(
+      thrust::raw_pointer_cast(d_atomicCounter.data()),
+      thrust::raw_pointer_cast(d_triangleVertices.data()),
+      d_triangleVertices.size(), thrust::raw_pointer_cast(d_vertexArray.data()),
+      d_vertexArray.size(), thrust::raw_pointer_cast(d_indexArray.data()));
   cudaDeviceSynchronize();
-  int numVertices = d_atomicCounter[0];
-  d_vertexArray.resize(numVertices);
-  {
-    d_atomicCounter[0] = 0;
-    int numJobs = 3 * numTriangles;
-    int blockSize = 512;
-    int numBlocks = (numJobs + blockSize - 1) / blockSize;
-    createVertexArray<<<numBlocks, blockSize>>>(
-        thrust::raw_pointer_cast(d_atomicCounter.data()),
-        thrust::raw_pointer_cast(d_triangleVertices.data()),
-        d_triangleVertices.size(),
-        thrust::raw_pointer_cast(d_vertexArray.data()), d_vertexArray.size(),
-        thrust::raw_pointer_cast(d_indexArray.data()));
-  }
+  nvert = d_atomicCounter[0];
+  d_vertexArray.resize(nvert);
+  d_atomicCounter[0] = 0;
+  numJobs = 3 * ntri;
+  blockSize = 512;
+  numBlocks = (numJobs + blockSize - 1) / blockSize;
+  createVertexArray<<<numBlocks, blockSize>>>(
+      thrust::raw_pointer_cast(d_atomicCounter.data()),
+      thrust::raw_pointer_cast(d_triangleVertices.data()),
+      d_triangleVertices.size(), thrust::raw_pointer_cast(d_vertexArray.data()),
+      d_vertexArray.size(), thrust::raw_pointer_cast(d_indexArray.data()));
   cudaDeviceSynchronize();
-  ntri = d_indexArray.size();
-  nvert = d_vertexArray.size();
+  assert(d_indexArray.size() == ntri);
+  assert(d_vertexArray.size() == nvert);
   if ((vert = (float3 *)malloc(nvert * sizeof *vert)) == NULL) {
     fprintf(stderr, "iso: error: malloc failed\n");
     exit(1);
@@ -556,10 +566,6 @@ int main(int argc, char **argv) {
     fprintf(stderr, "iso: error: malloc failed\n");
     exit(1);
   }
-
-  long nlost;
-  int level, Found;
-  Cell needl, *result;
   nlost = 0;
   for (j = 0; j < nvert; j++) {
     Found = 0;
