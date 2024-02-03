@@ -14,7 +14,7 @@ y0 = 1 / 2
 z0 = 1 / 2
 rx = 1 / 4
 ry = 1 / 5
-rz = 1 / 5
+rz = 1 / 6
 minlevel = 1
 maxlevel = 6
 L = 1 << 32
@@ -50,18 +50,19 @@ def traverse(x, y, z, level):
 traverse(0, 0, 0, 0)
 m_level = max(C[3] for C in C)
 s_level = 32 - m_level
-delta = 1 << m_level
+size = 1 << m_level
 with open("in.cells",
           "wb") as cell, open("in.scalars",
                               "wb") as scalars, open("in.field",
                                                      "wb") as field:
     for x, y, z, level in C:
-        x >>= s_level
-        y >>= s_level
-        z >>= s_level
-        level = m_level - level
-        cell.write(struct.pack("iii", x, y, z))
-        cell.write(struct.pack("i", level))
-        scalars.write(
-            struct.pack("f", indicator(x / delta, y / delta, z / delta)))
-        field.write(struct.pack("f", x / delta))
+        cell.write(struct.pack("iii", x >> s_level, y >> s_level,
+                               z >> s_level))
+        cell.write(struct.pack("i", m_level - level))
+        delta = 1 << (32 - level - 1)
+        u = (x + delta) / L
+        v = (y + delta) / L
+        w = (z + delta) / L
+        scalars.write(struct.pack("f", indicator(u, v, w)))
+        field.write(struct.pack("f", u))
+        print(u, v, w)
