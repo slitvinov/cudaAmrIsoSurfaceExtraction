@@ -10,7 +10,10 @@ z0 = nz / 2
 rx = nx / 4
 ry = nx / 5
 rz = nx / 6
-with open("in.cells", "wb") as cell, open("in.scalars", "wb") as scalars, open("in.field", "wb") as field:
+with open("in.cells",
+          "wb") as cell, open("in.scalars",
+                              "wb") as scalars, open("in.field",
+                                                     "wb") as field:
     for x in range(0, nx):
         for y in range(0, ny):
             for z in range(0, nz):
