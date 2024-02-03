@@ -39,12 +39,13 @@ def refinep(x, y, z, delta):
 
 def traverse(x, y, z, level):
     delta = 1 << (32 - level)
-    C.append((x, y, z, level))
     if level + 1 <= minlevel or (level + 1 <= maxlevel
                                  and refinep(x, y, z, delta)):
         d = 1 << (32 - level - 1)
         for dx, dy, dz in shift:
             traverse(x + d * dx, y + d * dy, z + d * dz, level + 1)
+    else:
+        C.append((x, y, z, level))
 
 
 traverse(0, 0, 0, 0)
@@ -65,4 +66,3 @@ with open("in.cells",
         w = (z + delta) / L
         scalars.write(struct.pack("f", indicator(u, v, w)))
         field.write(struct.pack("f", u))
-        print(u, v, w)
