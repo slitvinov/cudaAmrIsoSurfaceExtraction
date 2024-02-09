@@ -1,5 +1,4 @@
 import struct
-import fractions
 
 
 def indicator(x, y, z):
