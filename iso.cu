@@ -684,6 +684,7 @@ int main(int argc, char **argv) {
           "        </DataItem>\n"
           "      </Geometry>\n"
           "      <Attribute>\n"
+          "          Name=\"u\">\n"
           "        <DataItem\n"
           "            Dimensions=\"%ld\"\n"
           "            Precision=\"4\"\n"
