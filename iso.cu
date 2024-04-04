@@ -630,9 +630,10 @@ int main(int argc, char **argv) {
       needl.lower.z >>= level;
       needl.lower.z <<= level;
     }
-    if (Found)
+    if (Found) {
       attr[j] = result->field;
-    else {
+      fprintf(stderr, "%g\n", attr[j]);
+    } else {
       nlost++;
       attr[j] = 0;
     }
