@@ -395,7 +395,7 @@ int main(int argc, char **argv) {
   struct Cell needl, *cells, *result;
 
   if (argc != 6) {
-    fprintf(stderr, "iso in.cells in.scalars in.field isoValue mesh\n");
+    fprintf(stderr, "iso in.cells in.scalar in.field isoValue mesh\n");
     exit(1);
   }
   if ((cell_path = argv[1]) == NULL) {
