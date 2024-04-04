@@ -83,19 +83,9 @@ __host__ __device__ bool operator<(const vec3f &a, const vec3f &b) {
 __host__ __device__ float4 operator+(const float4 &a, const float4 &b) {
   return {a.x + b.x, a.y + b.y, a.z + b.z, a.w + b.w};
 }
-__host__ __device__ float4 operator*(const float4 &a, const float4 &b) {
-  return {a.x * b.x, a.y * b.y, a.z * b.z, a.w * b.w};
-}
-__host__ __device__ float4 operator-(const float4 &a, const float4 &b) {
-  return {a.x - b.x, a.y - b.y, a.z - b.z, a.w - b.w};
-}
-__host__ __device__ float4 operator*(const float4 &a, const float b) {
-  return {a.x * b, a.y * b, a.z * b, a.w * b};
-}
 __host__ __device__ float4 operator*(const float b, const float4 &a) {
   return {a.x * b, a.y * b, a.z * b, a.w * b};
 }
-
 __host__ __device__ bool operator==(const float4 &a, const float4 &b) {
   return a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w;
 }
