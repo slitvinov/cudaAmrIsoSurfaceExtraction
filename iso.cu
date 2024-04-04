@@ -346,12 +346,13 @@ __global__ void extractTriangles(const Morton *const __restrict__ mortonArray,
 }
 
 __global__ void
-createVertexArray(int *p_atomicCounter,
+createVertexArray(int *cnt,
                   const TriangleVertex *const __restrict__ vertices,
-                  int numVertices, float3 *outVertexArray,
-                  int outVertexArraySize, int3 *outIndexArray) {
+                  int nvert, float3 *vert,
+                  int vertSize, int3 *outIndexArray) {
+  int i, *tri;
   const int threadID = blockIdx.x * blockDim.x + threadIdx.x;
-  if (threadID >= numVertices)
+  if (threadID >= nvert)
     return;
 
   const TriangleVertex vertex = vertices[threadID];
@@ -359,19 +360,18 @@ createVertexArray(int *p_atomicCounter,
     // not unique...
     return;
 
-  int vertexArrayID = atomicAdd(p_atomicCounter, 1);
-  if (vertexArrayID >= outVertexArraySize)
+  int vertexArrayID = atomicAdd(cnt, 1);
+  if (vertexArrayID >= vertSize)
     return;
 
-  outVertexArray[vertexArrayID] = (float3 &)vertex.position;
+  vert[vertexArrayID] = (float3 &)vertex.position;
 
-  for (int i = threadID;
-       i < numVertices && vertices[i].position == vertex.position; i++) {
+  for (i = threadID; i < nvert && vertices[i].position == vertex.position; i++) {
     int triangleAndVertexID = vertices[i].triangleAndVertexID;
     int targetVertexID = triangleAndVertexID % 4;
     int targetTriangleID = triangleAndVertexID / 4;
-    int *triIndices = &outIndexArray[targetTriangleID].x;
-    triIndices[targetVertexID] = vertexArrayID;
+    tri = &outIndexArray[targetTriangleID].x;
+    tri[targetVertexID] = vertexArrayID;
   }
 }
 
