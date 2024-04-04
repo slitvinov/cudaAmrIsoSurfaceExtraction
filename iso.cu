@@ -529,8 +529,8 @@ int main(int argc, char **argv) {
   thrust::sort(d_triangleVertices.begin(), d_triangleVertices.end(),
                CompareVertices());
   cudaDeviceSynchronize();
-  thrust::device_vector<float3> d_vertexArray(0);
-  thrust::device_vector<int3> d_indexArray(ntri);
+  thrust::device_vector<float3> d_vert(0);
+  thrust::device_vector<int3> d_tri(ntri);
   d_atomicCounter[0] = 0;
   numJobs = 3 * ntri;
   blockSize = 512;
@@ -538,11 +538,11 @@ int main(int argc, char **argv) {
   createVertexArray<<<numBlocks, blockSize>>>(
       thrust::raw_pointer_cast(d_atomicCounter.data()),
       thrust::raw_pointer_cast(d_triangleVertices.data()),
-      d_triangleVertices.size(), thrust::raw_pointer_cast(d_vertexArray.data()),
-      d_vertexArray.size(), thrust::raw_pointer_cast(d_indexArray.data()));
+      d_triangleVertices.size(), thrust::raw_pointer_cast(d_vert.data()),
+      d_vert.size(), thrust::raw_pointer_cast(d_tri.data()));
   cudaDeviceSynchronize();
   nvert = d_atomicCounter[0];
-  d_vertexArray.resize(nvert);
+  d_vert.resize(nvert);
   d_atomicCounter[0] = 0;
   numJobs = 3 * ntri;
   blockSize = 512;
@@ -550,11 +550,11 @@ int main(int argc, char **argv) {
   createVertexArray<<<numBlocks, blockSize>>>(
       thrust::raw_pointer_cast(d_atomicCounter.data()),
       thrust::raw_pointer_cast(d_triangleVertices.data()),
-      d_triangleVertices.size(), thrust::raw_pointer_cast(d_vertexArray.data()),
-      d_vertexArray.size(), thrust::raw_pointer_cast(d_indexArray.data()));
+      d_triangleVertices.size(), thrust::raw_pointer_cast(d_vert.data()),
+      nvert, thrust::raw_pointer_cast(d_tri.data()));
   cudaDeviceSynchronize();
-  assert(d_indexArray.size() == ntri);
-  assert(d_vertexArray.size() == nvert);
+  assert(d_tri.size() == ntri);
+  assert(d_vert.size() == nvert);
   if ((vert = (float3 *)malloc(nvert * sizeof *vert)) == NULL) {
     fprintf(stderr, "iso: error: malloc failed\n");
     exit(1);
@@ -563,8 +563,8 @@ int main(int argc, char **argv) {
     fprintf(stderr, "iso: error: malloc failed\n");
     exit(1);
   }
-  thrust::copy(d_vertexArray.begin(), d_vertexArray.end(), vert);
-  thrust::copy(d_indexArray.begin(), d_indexArray.end(), tri);
+  thrust::copy(d_vert.begin(), d_vert.end(), vert);
+  thrust::copy(d_tri.begin(), d_tri.end(), tri);
 
   snprintf(xyz_path, sizeof xyz_path, "%s.xyz.raw", output_path);
   snprintf(tri_path, sizeof tri_path, "%s.tri.raw", output_path);
