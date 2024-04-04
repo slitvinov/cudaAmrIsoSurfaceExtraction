@@ -632,7 +632,6 @@ int main(int argc, char **argv) {
     }
     if (Found) {
       attr[j] = result->field;
-      fprintf(stderr, "%g\n", attr[j]);
     } else {
       nlost++;
       attr[j] = 0;
