@@ -349,24 +349,25 @@ __global__ void
 createVertexArray(int *cnt,
                   const TriangleVertex *const __restrict__ vertices,
                   int nvert, float3 *vert,
-                  int vertSize, int3 *outIndexArray) {
-  int i, *tri;
-  const int threadID = blockIdx.x * blockDim.x + threadIdx.x;
-  if (threadID >= nvert)
+                  int size, int3 *index) {
+  int i, j, k, l, id, tid, *tri;
+  TriangleVertex vertex;
+  tid  = blockIdx.x * blockDim.x + threadIdx.x;
+  if (tid >= nvert)
     return;
-  const TriangleVertex vertex = vertices[threadID];
-  if (threadID > 0 && vertex.position == vertices[threadID - 1].position)
+  vertex = vertices[tid];
+  if (tid > 0 && vertex.position == vertices[tid - 1].position)
     return;
-  int vertexArrayID = atomicAdd(cnt, 1);
-  if (vertexArrayID >= vertSize)
+  id = atomicAdd(cnt, 1);
+  if (id >= size)
     return;
-  vert[vertexArrayID] = (float3 &)vertex.position;
-  for (i = threadID; i < nvert && vertices[i].position == vertex.position; i++) {
-    int triangleAndVertexID = vertices[i].triangleAndVertexID;
-    int targetVertexID = triangleAndVertexID % 4;
-    int targetTriangleID = triangleAndVertexID / 4;
-    tri = &outIndexArray[targetTriangleID].x;
-    tri[targetVertexID] = vertexArrayID;
+  vert[id] = (float3 &)vertex.position;
+  for (i = tid; i < nvert && vertices[i].position == vertex.position; i++) {
+    j = vertices[i].triangleAndVertexID;
+    k = j % 4;
+    l = j / 4;
+    tri = &index[l].x;
+    tri[k] = id;
   }
 }
 
