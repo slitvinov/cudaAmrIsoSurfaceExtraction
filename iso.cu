@@ -354,18 +354,13 @@ createVertexArray(int *cnt,
   const int threadID = blockIdx.x * blockDim.x + threadIdx.x;
   if (threadID >= nvert)
     return;
-
   const TriangleVertex vertex = vertices[threadID];
   if (threadID > 0 && vertex.position == vertices[threadID - 1].position)
-    // not unique...
     return;
-
   int vertexArrayID = atomicAdd(cnt, 1);
   if (vertexArrayID >= vertSize)
     return;
-
   vert[vertexArrayID] = (float3 &)vertex.position;
-
   for (i = threadID; i < nvert && vertices[i].position == vertex.position; i++) {
     int triangleAndVertexID = vertices[i].triangleAndVertexID;
     int targetVertexID = triangleAndVertexID % 4;
