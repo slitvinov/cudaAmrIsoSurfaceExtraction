@@ -42,7 +42,7 @@ __device__ __host__ long leftShift3(long x) {
 
 __device__ __host__ long mortonCode(const vec3i v) {
   return (leftShift3(uint32_t(v.z)) << 2) | (leftShift3(uint32_t(v.y)) << 1) |
-         (leftShift3(uint32_t(v.x)) << 0);
+	 (leftShift3(uint32_t(v.x)) << 0);
 }
 
 __host__ __device__ bool operator==(const vec3i &a, const vec3i &b) {
@@ -77,7 +77,7 @@ __host__ __device__ bool operator==(const vec3f &a, const vec3f &b) {
 
 __host__ __device__ bool operator<(const vec3f &a, const vec3f &b) {
   return (a.x < b.x) ||
-         ((a.x == b.x) && ((a.y < b.y) || (a.y == b.y) && (a.z < b.z)));
+	 ((a.x == b.x) && ((a.y < b.y) || (a.y == b.y) && (a.z < b.z)));
 }
 
 __host__ __device__ float4 operator+(const float4 &a, const float4 &b) {
@@ -118,7 +118,7 @@ struct Cell : public CellCoords {
 
 __host__ __device__ bool operator==(const Cell &a, const Cell &b) {
   return ((const CellCoords &)a == (const CellCoords &)b) &&
-         (a.scalar == b.scalar);
+	 (a.scalar == b.scalar);
 }
 
 __host__ __device__ bool operator!=(const Cell &a, const Cell &b) {
@@ -135,7 +135,7 @@ struct CompareMorton {
     return a.morton < b.morton;
   }
   inline __host__ __device__ bool operator()(const Morton &a,
-                                             const uint64_t b) {
+					     const uint64_t b) {
     return a.morton < b;
   }
 };
@@ -149,16 +149,16 @@ struct CompareByCoordsLowerOnly {
   __host__ __device__ CompareByCoordsLowerOnly(const vec3i coordOrigin)
       : coordOrigin(coordOrigin) {}
   __host__ __device__ bool operator()(const Cell &lhs,
-                                      const CellCoords &rhs) const {
+				      const CellCoords &rhs) const {
     return (mortonCode(lhs.lower - coordOrigin) <
-            mortonCode(rhs.lower - coordOrigin));
+	    mortonCode(rhs.lower - coordOrigin));
   }
   const vec3i coordOrigin;
 };
 
 struct CompareVertices {
   __host__ __device__ bool operator()(const TriangleVertex &lhs,
-                                      const TriangleVertex &rhs) const {
+				      const TriangleVertex &rhs) const {
     const float4 a = (const float4 &)lhs;
     const float4 b = (const float4 &)rhs;
 
@@ -168,27 +168,27 @@ struct CompareVertices {
 
 struct AMR {
   __host__ __device__ AMR(const Morton *const __restrict__ mortonArray,
-                          const vec3i coordOrigin,
-                          const Cell *const __restrict__ cellArray,
-                          const int numCells, const int maxLevel)
+			  const vec3i coordOrigin,
+			  const Cell *const __restrict__ cellArray,
+			  const int numCells, const int maxLevel)
       : mortonArray(mortonArray), coordOrigin(coordOrigin),
-        cellArray(cellArray), numCells(numCells), maxLevel(maxLevel) {}
+	cellArray(cellArray), numCells(numCells), maxLevel(maxLevel) {}
 
   __host__ __device__ bool findActual(Cell &result, const CellCoords &coords) {
     const Morton *const __restrict__ begin = mortonArray;
     const Morton *const __restrict__ end = mortonArray + numCells;
 
     const Morton *it = thrust::system::detail::generic::scalar::lower_bound(
-        begin, end, mortonCode(coords.lower - coordOrigin), CompareMorton());
+	begin, end, mortonCode(coords.lower - coordOrigin), CompareMorton());
 
     if (it == end)
       return false;
 
     const Cell found = *it->cell;
     if ((found.lower >> max(coords.level, found.level)) ==
-        (coords.lower >> max(coords.level, found.level))
-        // &&
-        // (found.level >= coords.level)
+	(coords.lower >> max(coords.level, found.level))
+	// &&
+	// (found.level >= coords.level)
     ) {
       result = found;
       return true;
@@ -197,12 +197,12 @@ struct AMR {
     if (it > begin) {
       const Cell found = *it[-1].cell;
       if ((found.lower >> max(coords.level, found.level)) ==
-          (coords.lower >> max(coords.level, found.level))
-          // &&
-          // (found.level >= coords.level)
+	  (coords.lower >> max(coords.level, found.level))
+	  // &&
+	  // (found.level >= coords.level)
       ) {
-        result = found;
-        return true;
+	result = found;
+	return true;
       }
     }
 
@@ -217,9 +217,9 @@ struct AMR {
 };
 
 __global__ void buildMortonArray(Morton *const __restrict__ mortonArray,
-                                 const vec3i coordOrigin,
-                                 const Cell *const __restrict__ cellArray,
-                                 const int numCells) {
+				 const vec3i coordOrigin,
+				 const Cell *const __restrict__ cellArray,
+				 const int numCells) {
   const size_t threadID = threadIdx.x + size_t(blockDim.x) * blockIdx.x;
   if (threadID >= numCells)
     return;
@@ -230,10 +230,10 @@ __global__ void buildMortonArray(Morton *const __restrict__ mortonArray,
 
 struct IsoExtractor {
   __device__ __host__ IsoExtractor(const float isoValue,
-                                   TriangleVertex *outputArray,
-                                   int outputArraySize, int *p_atomicCounter)
+				   TriangleVertex *outputArray,
+				   int outputArraySize, int *p_atomicCounter)
       : isoValue(isoValue), outputArray(outputArray),
-        outputArraySize(outputArraySize), p_atomicCounter(p_atomicCounter) {}
+	outputArraySize(outputArraySize), p_atomicCounter(p_atomicCounter) {}
 
   const float isoValue;
   TriangleVertex *const outputArray;
@@ -243,66 +243,66 @@ struct IsoExtractor {
   int __device__ allocTriangle() { return atomicAdd(p_atomicCounter, 1); }
 
   void __device__ doMarchingCubesOn(const vec3i mirror,
-                                    const Cell zOrder[2][2][2]) {
+				    const Cell zOrder[2][2][2]) {
     // we have OUR cells in z-order, but VTK case table assumes
     // everything is is VTK 'hexahedron' ordering, so let's rearrange
     // ... and while doing so, also make sure that we flip based on
     // which direction the parent cell created this dual from
     float4 vertex[8] = {
-        zOrder[0 + mirror.z][0 + mirror.y][0 + mirror.x].asDualVertex(),
-        zOrder[0 + mirror.z][0 + mirror.y][1 - mirror.x].asDualVertex(),
-        zOrder[0 + mirror.z][1 - mirror.y][1 - mirror.x].asDualVertex(),
-        zOrder[0 + mirror.z][1 - mirror.y][0 + mirror.x].asDualVertex(),
-        zOrder[1 - mirror.z][0 + mirror.y][0 + mirror.x].asDualVertex(),
-        zOrder[1 - mirror.z][0 + mirror.y][1 - mirror.x].asDualVertex(),
-        zOrder[1 - mirror.z][1 - mirror.y][1 - mirror.x].asDualVertex(),
-        zOrder[1 - mirror.z][1 - mirror.y][0 + mirror.x].asDualVertex()};
+	zOrder[0 + mirror.z][0 + mirror.y][0 + mirror.x].asDualVertex(),
+	zOrder[0 + mirror.z][0 + mirror.y][1 - mirror.x].asDualVertex(),
+	zOrder[0 + mirror.z][1 - mirror.y][1 - mirror.x].asDualVertex(),
+	zOrder[0 + mirror.z][1 - mirror.y][0 + mirror.x].asDualVertex(),
+	zOrder[1 - mirror.z][0 + mirror.y][0 + mirror.x].asDualVertex(),
+	zOrder[1 - mirror.z][0 + mirror.y][1 - mirror.x].asDualVertex(),
+	zOrder[1 - mirror.z][1 - mirror.y][1 - mirror.x].asDualVertex(),
+	zOrder[1 - mirror.z][1 - mirror.y][0 + mirror.x].asDualVertex()};
 
     int index = 0;
     for (int i = 0; i < 8; i++)
       if (vertex[i].w > isoValue)
-        index += (1 << i);
+	index += (1 << i);
     if (index == 0 || index == 0xff)
       return;
 
     for (const int8_t *edge = &vtkMarchingCubesTriangleCases[index][0];
-         edge[0] > -1; edge += 3) {
+	 edge[0] > -1; edge += 3) {
       float4 triVertex[3];
       for (int ii = 0; ii < 3; ii++) {
-        const int8_t *vert = vtkMarchingCubes_edges[edge[ii]];
-        const float4 v0 = vertex[vert[0]];
-        const float4 v1 = vertex[vert[1]];
-        const float t = (isoValue - v0.w) / float(v1.w - v0.w);
-        triVertex[ii] = (1.f - t) * v0 + t * v1;
+	const int8_t *vert = vtkMarchingCubes_edges[edge[ii]];
+	const float4 v0 = vertex[vert[0]];
+	const float4 v1 = vertex[vert[1]];
+	const float t = (isoValue - v0.w) / float(v1.w - v0.w);
+	triVertex[ii] = (1.f - t) * v0 + t * v1;
       }
 
       if (triVertex[1] == triVertex[0])
-        continue;
+	continue;
       if (triVertex[2] == triVertex[0])
-        continue;
+	continue;
       if (triVertex[1] == triVertex[2])
-        continue;
+	continue;
 
       const int triangleID = allocTriangle();
       if (triangleID >= 3 * outputArraySize)
-        continue;
+	continue;
 
       for (int j = 0; j < 3; j++) {
-        (int &)triVertex[j].w = (4 * triangleID + j);
-        (float4 &)outputArray[3 * triangleID + j] = triVertex[j];
+	(int &)triVertex[j].w = (4 * triangleID + j);
+	(float4 &)outputArray[3 * triangleID + j] = triVertex[j];
       }
     }
   }
 };
 
 __global__ void extractTriangles(const Morton *const __restrict__ mortonArray,
-                                 const vec3i coordOrigin,
-                                 const Cell *const __restrict__ cellArray,
-                                 const int numCells, const int maxLevel,
-                                 const float isoValue,
-                                 TriangleVertex *__restrict__ outVertex,
-                                 const int outVertexSize,
-                                 int *p_numGeneratedTriangles) {
+				 const vec3i coordOrigin,
+				 const Cell *const __restrict__ cellArray,
+				 const int numCells, const int maxLevel,
+				 const float isoValue,
+				 TriangleVertex *__restrict__ outVertex,
+				 const int outVertexSize,
+				 int *p_numGeneratedTriangles) {
   AMR amr(mortonArray, coordOrigin, cellArray, numCells, maxLevel);
 
   const size_t threadID = threadIdx.x + size_t(blockDim.x) * blockIdx.x;
@@ -321,35 +321,35 @@ __global__ void extractTriangles(const Morton *const __restrict__ mortonArray,
   for (int iz = 0; iz < 2; iz++)
     for (int iy = 0; iy < 2; iy++)
       for (int ix = 0; ix < 2; ix++) {
-        const vec3i delta = vec3i(dx * ix, dy * iy, dz * iz);
-        const CellCoords cornerCoords = currentCell.neighbor(delta);
+	const vec3i delta = vec3i(dx * ix, dy * iy, dz * iz);
+	const CellCoords cornerCoords = currentCell.neighbor(delta);
 
-        if (!amr.findActual(corner[iz][iy][ix], cornerCoords))
-          // corner does not exist - currentcell is on a boundary, and
-          // this is not a dual cell
-          return;
+	if (!amr.findActual(corner[iz][iy][ix], cornerCoords))
+	  // corner does not exist - currentcell is on a boundary, and
+	  // this is not a dual cell
+	  return;
 
-        if (corner[iz][iy][ix].level < currentCell.level)
-          // somebody else will generate this same cell from a finer
-          // level...
-          return;
+	if (corner[iz][iy][ix].level < currentCell.level)
+	  // somebody else will generate this same cell from a finer
+	  // level...
+	  return;
 
-        if (corner[iz][iy][ix].level == currentCell.level &&
-            corner[iz][iy][ix] < currentCell)
-          // this other cell will generate this dual cell...
-          return;
+	if (corner[iz][iy][ix].level == currentCell.level &&
+	    corner[iz][iy][ix] < currentCell)
+	  // this other cell will generate this dual cell...
+	  return;
       }
 
   IsoExtractor isoExtractor(isoValue, outVertex, outVertexSize,
-                            p_numGeneratedTriangles);
+			    p_numGeneratedTriangles);
   isoExtractor.doMarchingCubesOn({dx == -1, dy == -1, dz == -1}, corner);
 }
 
 __global__ void
 createVertexArray(int *cnt,
-                  const TriangleVertex *const __restrict__ vertices,
-                  int nvert, float3 *vert,
-                  int size, int3 *index) {
+		  const TriangleVertex *const __restrict__ vertices,
+		  int nvert, float3 *vert,
+		  int size, int3 *index) {
   int i, j, k, l, id, tid, *tri;
   TriangleVertex vertex;
   tid  = blockIdx.x * blockDim.x + threadIdx.x;
@@ -377,7 +377,7 @@ static int comp(const void *av, const void *bv) {
   a = (struct Cell *)av;
   b = (struct Cell *)bv;
   return mortonCode(a->lower - coordOrigin) -
-         mortonCode(b->lower - coordOrigin);
+	 mortonCode(b->lower - coordOrigin);
 }
 
 int main(int argc, char **argv) {
@@ -468,7 +468,7 @@ int main(int argc, char **argv) {
     maxLevel = std::max(maxLevel, cells[i].level);
     bounds_lower = min(bounds_lower, cells[i].lower);
     bounds_upper =
-        max(bounds_upper, cells[i].lower + vec3i(1 << cells[i].level));
+	max(bounds_upper, cells[i].lower + vec3i(1 << cells[i].level));
     coordOrigin = min(coordOrigin, cells[i].lower);
   }
   if (fclose(cell_file) != 0) {
@@ -494,8 +494,8 @@ int main(int argc, char **argv) {
   blockSize = 512;
   numBlocks = (numJobs + blockSize - 1) / blockSize;
   buildMortonArray<<<numBlocks, blockSize>>>(
-        thrust::raw_pointer_cast(d_mortonArray.data()), coordOrigin,
-        thrust::raw_pointer_cast(d_cells.data()), d_cells.size());
+	thrust::raw_pointer_cast(d_mortonArray.data()), coordOrigin,
+	thrust::raw_pointer_cast(d_cells.data()), d_cells.size());
   cudaDeviceSynchronize();
   thrust::sort(d_mortonArray.begin(), d_mortonArray.end(), CompareMorton());
 
@@ -527,7 +527,7 @@ int main(int argc, char **argv) {
       thrust::raw_pointer_cast(d_atomicCounter.data()));
   cudaDeviceSynchronize();
   thrust::sort(d_triangleVertices.begin(), d_triangleVertices.end(),
-               CompareVertices());
+	       CompareVertices());
   cudaDeviceSynchronize();
   thrust::device_vector<float3> d_vert(0);
   thrust::device_vector<int3> d_tri(ntri);
@@ -619,18 +619,15 @@ int main(int argc, char **argv) {
     for (;;) {
       result = (Cell *)bsearch(&needl, cells, numCells, sizeof(Cell), comp);
       if (result != NULL) {
-        Found = 1;
-        break;
+	Found = 1;
+	break;
       }
       if (level == maxLevel)
 	break;
       level++;
-      needl.lower.x >>= level;
-      needl.lower.x <<= level;
-      needl.lower.y >>= level;
-      needl.lower.y <<= level;
-      needl.lower.z >>= level;
-      needl.lower.z <<= level;
+      needl.lower.x &= (~0 << level);
+      needl.lower.y &= (~0 << level);
+      needl.lower.z &= (~0 << level);
     }
     if (Found) {
       attr[j] = result->field;
@@ -663,41 +660,41 @@ int main(int argc, char **argv) {
     exit(1);
   }
   fprintf(file,
-          "<Xdmf\n"
-          "    Version=\"2\">\n"
-          "  <Domain>\n"
-          "    <Grid>\n"
-          "      <Topology\n"
-          "         TopologyType=\"Triangle\"\n"
-          "         Dimensions=\"%ld\">\n"
-          "        <DataItem\n"
-          "            Dimensions=\"%ld 3\"\n"
-          "            NumberType=\"Int\"\n"
-          "            Format=\"Binary\">\n"
-          "          %s\n"
-          "        </DataItem>\n"
-          "      </Topology>\n"
-          "      <Geometry>\n"
-          "        <DataItem\n"
-          "            Dimensions=\"%ld 3\"\n"
-          "            Precision=\"4\"\n"
-          "            Format=\"Binary\">\n"
-          "          %s\n"
-          "        </DataItem>\n"
-          "      </Geometry>\n"
-          "      <Attribute\n"
-          "          Name=\"u\">\n"
-          "        <DataItem\n"
-          "            Dimensions=\"%ld\"\n"
-          "            Precision=\"4\"\n"
-          "            Format=\"Binary\">\n"
-          "          %s\n"
-          "        </DataItem>\n"
-          "      </Attribute>\n"
-          "    </Grid>\n"
-          "  </Domain>\n"
-          "</Xdmf>\n",
-          ntri, ntri, tri_base, nvert, xyz_base, nvert, attr_base);
+	  "<Xdmf\n"
+	  "    Version=\"2\">\n"
+	  "  <Domain>\n"
+	  "    <Grid>\n"
+	  "      <Topology\n"
+	  "         TopologyType=\"Triangle\"\n"
+	  "         Dimensions=\"%ld\">\n"
+	  "        <DataItem\n"
+	  "            Dimensions=\"%ld 3\"\n"
+	  "            NumberType=\"Int\"\n"
+	  "            Format=\"Binary\">\n"
+	  "          %s\n"
+	  "        </DataItem>\n"
+	  "      </Topology>\n"
+	  "      <Geometry>\n"
+	  "        <DataItem\n"
+	  "            Dimensions=\"%ld 3\"\n"
+	  "            Precision=\"4\"\n"
+	  "            Format=\"Binary\">\n"
+	  "          %s\n"
+	  "        </DataItem>\n"
+	  "      </Geometry>\n"
+	  "      <Attribute\n"
+	  "          Name=\"u\">\n"
+	  "        <DataItem\n"
+	  "            Dimensions=\"%ld\"\n"
+	  "            Precision=\"4\"\n"
+	  "            Format=\"Binary\">\n"
+	  "          %s\n"
+	  "        </DataItem>\n"
+	  "      </Attribute>\n"
+	  "    </Grid>\n"
+	  "  </Domain>\n"
+	  "</Xdmf>\n",
+	  ntri, ntri, tri_base, nvert, xyz_base, nvert, attr_base);
   if (fclose(file) != 0) {
     fprintf(stderr, "iso: fail to close '%s'\n", xdmf_path);
     exit(1);
