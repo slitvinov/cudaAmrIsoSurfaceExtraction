@@ -683,7 +683,7 @@ int main(int argc, char **argv) {
           "          %s\n"
           "        </DataItem>\n"
           "      </Geometry>\n"
-          "      <Attribute>\n"
+          "      <Attribute\n"
           "          Name=\"u\">\n"
           "        <DataItem\n"
           "            Dimensions=\"%ld\"\n"
