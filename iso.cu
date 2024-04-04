@@ -444,8 +444,6 @@ int main(int argc, char **argv) {
   size = ftell(cell_file);
   fseek(cell_file, 0, SEEK_SET);
   numCells = size / (4 * sizeof(int));
-  fprintf(stderr, "iso: isoValue: %g\n", isoValue);
-  fprintf(stderr, "iso: numCells: %ld\n", numCells);
   if ((cells = (Cell *)malloc(numCells * sizeof *cells)) == NULL) {
     fprintf(stderr, "iso: error: malloc failed\n");
     exit(1);
