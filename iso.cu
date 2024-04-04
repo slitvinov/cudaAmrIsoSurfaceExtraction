@@ -491,6 +491,7 @@ int main(int argc, char **argv) {
   thrust::device_vector<Cell> d_cells{cells, cells + numCells};
   thrust::device_vector<Morton> d_mortonArray(numCells);
   numJobs = numCells;
+  blockSize = 512;
   numBlocks = (numJobs + blockSize - 1) / blockSize;
   buildMortonArray<<<numBlocks, blockSize>>>(
         thrust::raw_pointer_cast(d_mortonArray.data()), coordOrigin,
