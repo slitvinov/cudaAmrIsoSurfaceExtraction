@@ -490,14 +490,11 @@ int main(int argc, char **argv) {
   qsort(cells, numCells, sizeof *cells, comp);
   thrust::device_vector<Cell> d_cells{cells, cells + numCells};
   thrust::device_vector<Morton> d_mortonArray(numCells);
-  {
-    size_t numJobs = numCells;
-    int blockSize = 512;
-    int numBlocks = (numJobs + blockSize - 1) / blockSize;
-    buildMortonArray<<<numBlocks, blockSize>>>(
+  numJobs = numCells;
+  numBlocks = (numJobs + blockSize - 1) / blockSize;
+  buildMortonArray<<<numBlocks, blockSize>>>(
         thrust::raw_pointer_cast(d_mortonArray.data()), coordOrigin,
         thrust::raw_pointer_cast(d_cells.data()), d_cells.size());
-  }
   cudaDeviceSynchronize();
   thrust::sort(d_mortonArray.begin(), d_mortonArray.end(), CompareMorton());
 
@@ -617,18 +614,22 @@ int main(int argc, char **argv) {
     needl.lower.x = vert[j].x;
     needl.lower.y = vert[j].y;
     needl.lower.z = vert[j].z;
-    for (level = 0; level <= maxLevel; level++) {
+    level = 0;
+    for (;;) {
       result = (Cell *)bsearch(&needl, cells, numCells, sizeof(Cell), comp);
       if (result != NULL) {
         Found = 1;
         break;
       }
+      if (level == maxLevel)
+	break;
+      level++;
       needl.lower.x >>= level;
-      //      needl.lower.x <<= level;
+      needl.lower.x <<= level;
       needl.lower.y >>= level;
-      //needl.lower.y <<= level;
+      needl.lower.y <<= level;
       needl.lower.z >>= level;
-      //needl.lower.z <<= level;
+      needl.lower.z <<= level;
     }
     if (Found) {
       attr[j] = result->field;
