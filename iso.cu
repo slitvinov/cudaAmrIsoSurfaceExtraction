@@ -624,11 +624,11 @@ int main(int argc, char **argv) {
         break;
       }
       needl.lower.x >>= level;
-      needl.lower.x <<= level;
+      //      needl.lower.x <<= level;
       needl.lower.y >>= level;
-      needl.lower.y <<= level;
+      //needl.lower.y <<= level;
       needl.lower.z >>= level;
-      needl.lower.z <<= level;
+      //needl.lower.z <<= level;
     }
     if (Found) {
       attr[j] = result->field;
