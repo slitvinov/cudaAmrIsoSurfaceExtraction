@@ -7,7 +7,6 @@
 
 struct vec3i {
   __host__ __device__ vec3i() {}
-  __host__ __device__ vec3i(int i) : x(i), y(i), z(i) {}
   __host__ __device__ vec3i(int x, int y, int z) : x(x), y(y), z(z) {}
   int x, y, z;
 };
