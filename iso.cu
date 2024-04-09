@@ -21,12 +21,6 @@ __host__ __device__ vec3i operator-(const vec3i &a, const vec3i &b) {
 __host__ __device__ vec3i operator*(const vec3i &a, const int b) {
   return {a.x * b, a.y * b, a.z * b};
 }
-__host__ vec3i min(const vec3i &a, const vec3i &b) {
-  return vec3i(std::min(a.x, b.x), std::min(a.y, b.y), std::min(a.z, b.z));
-}
-__host__ vec3i max(const vec3i &a, const vec3i &b) {
-  return vec3i(std::max(a.x, b.x), std::max(a.y, b.y), std::max(a.z, b.z));
-}
 __device__ __host__ vec3i operator>>(const vec3i v, const int s) {
   return vec3i(v.x >> s, v.y >> s, v.z >> s);
 }
@@ -146,14 +140,14 @@ struct TriangleVertex {
 };
 
 struct CompareByCoordsLowerOnly {
-  __host__ __device__ CompareByCoordsLowerOnly(const vec3i coordOrigin)
-      : coordOrigin(coordOrigin) {}
+  __host__ __device__ CompareByCoordsLowerOnly(const vec3i origin)
+      : origin(origin) {}
   __host__ __device__ bool operator()(const Cell &lhs,
 				      const CellCoords &rhs) const {
-    return (mortonCode(lhs.lower - coordOrigin) <
-	    mortonCode(rhs.lower - coordOrigin));
+    return (mortonCode(lhs.lower - origin) <
+	    mortonCode(rhs.lower - origin));
   }
-  const vec3i coordOrigin;
+  const vec3i origin;
 };
 
 struct CompareVertices {
@@ -168,18 +162,18 @@ struct CompareVertices {
 
 struct AMR {
   __host__ __device__ AMR(const Morton *const __restrict__ mortonArray,
-			  const vec3i coordOrigin,
+			  const vec3i origin,
 			  const Cell *const __restrict__ cellArray,
-			  const int ncell, const int maxLevel)
-      : mortonArray(mortonArray), coordOrigin(coordOrigin),
-	cellArray(cellArray), ncell(ncell), maxLevel(maxLevel) {}
+			  const int ncell, const int maxlevel)
+      : mortonArray(mortonArray), origin(origin),
+	cellArray(cellArray), ncell(ncell), maxlevel(maxlevel) {}
 
   __host__ __device__ bool findActual(Cell &result, const CellCoords &coords) {
     const Morton *const __restrict__ begin = mortonArray;
     const Morton *const __restrict__ end = mortonArray + ncell;
 
     const Morton *it = thrust::system::detail::generic::scalar::lower_bound(
-	begin, end, mortonCode(coords.lower - coordOrigin), CompareMorton());
+	begin, end, mortonCode(coords.lower - origin), CompareMorton());
 
     if (it == end)
       return false;
@@ -211,20 +205,20 @@ struct AMR {
 
   const Cell *const __restrict__ cellArray;
   const int ncell;
-  const int maxLevel;
-  const vec3i coordOrigin;
+  const int maxlevel;
+  const vec3i origin;
   const Morton *const __restrict__ mortonArray;
 };
 
 __global__ void buildMortonArray(Morton *const __restrict__ mortonArray,
-				 const vec3i coordOrigin,
+				 const vec3i origin,
 				 const Cell *const __restrict__ cellArray,
 				 const int ncell) {
   const size_t threadID = threadIdx.x + size_t(blockDim.x) * blockIdx.x;
   if (threadID >= ncell)
     return;
   mortonArray[threadID].morton =
-      mortonCode(cellArray[threadID].lower - coordOrigin);
+      mortonCode(cellArray[threadID].lower - origin);
   mortonArray[threadID].cell = &cellArray[threadID];
 }
 
@@ -296,14 +290,14 @@ struct IsoExtractor {
 };
 
 __global__ void extractTriangles(const Morton *const __restrict__ mortonArray,
-				 const vec3i coordOrigin,
+				 const vec3i origin,
 				 const Cell *const __restrict__ cellArray,
-				 const int ncell, const int maxLevel,
+				 const int ncell, const int maxlevel,
 				 const float isoValue,
 				 TriangleVertex *__restrict__ outVertex,
 				 const int outVertexSize,
 				 int *p_numGeneratedTriangles) {
-  AMR amr(mortonArray, coordOrigin, cellArray, ncell, maxLevel);
+  AMR amr(mortonArray, origin, cellArray, ncell, maxlevel);
 
   const size_t threadID = threadIdx.x + size_t(blockDim.x) * blockIdx.x;
 
@@ -371,13 +365,13 @@ createVertexArray(int *cnt,
   }
 }
 
-static vec3i coordOrigin;
+static vec3i origin;
 static int comp(const void *av, const void *bv) {
   struct Cell *a, *b;
   a = (struct Cell *)av;
   b = (struct Cell *)bv;
-  return mortonCode(a->lower - coordOrigin) -
-	 mortonCode(b->lower - coordOrigin);
+  return mortonCode(a->lower - origin) -
+	 mortonCode(b->lower - origin);
 }
 
 int main(int argc, char **argv) {
@@ -385,7 +379,7 @@ int main(int argc, char **argv) {
   float3 *vert;
   int3 *tri;
   size_t numJobs;
-  int maxLevel, level, Found, blockSize, numBlocks;
+  int maxlevel, level, Found, blockSize, numBlocks;
   long i, j, nvert, ntri, ncell, size, nlost;
   FILE *file, *cell_file, *scalar_file, *field_file;
   int cell[4];
@@ -423,8 +417,7 @@ int main(int argc, char **argv) {
     fprintf(stderr, "iso: error: out.mesh is not given\n");
     exit(1);
   }
-  coordOrigin = 1 << 30;
-  maxLevel = 0;
+  maxlevel = 0;
   ncell = 0;
   if ((cell_file = fopen(cell_path, "r")) == NULL) {
     fprintf(stderr, "iso: error: fail to open '%s'\n", cell_path);
@@ -442,10 +435,13 @@ int main(int argc, char **argv) {
   size = ftell(cell_file);
   fseek(cell_file, 0, SEEK_SET);
   ncell = size / (4 * sizeof(int));
-  if ((cells = (Cell *)malloc(ncell * sizeof *cells)) == NULL) {
+  if ((cells = (struct Cell *)malloc(ncell * sizeof *cells)) == NULL) {
     fprintf(stderr, "iso: error: malloc failed\n");
     exit(1);
   }
+  origin.x = INT_MIN;
+  origin.y = INT_MIN;
+  origin.z = INT_MIN;
   for (i = 0; i < ncell; i++) {
     if (fread(cell, sizeof(cell), 1, cell_file) != 1) {
       fprintf(stderr, "iso: error: fail to read '%s'\n", cell_path);
@@ -463,8 +459,10 @@ int main(int argc, char **argv) {
       fprintf(stderr, "iso: error: fail to read '%s'\n", field_path);
       exit(1);
     }
-    maxLevel = std::max(maxLevel, cells[i].level);
-    coordOrigin = min(coordOrigin, cells[i].lower);
+    maxlevel = std::max(maxlevel, cells[i].level);
+    origin.x = std::min(origin.x, cells[i].lower.x);
+    origin.y = std::min(origin.y, cells[i].lower.y);
+    origin.z = std::min(origin.z, cells[i].lower.z);
   }
   if (fclose(cell_file) != 0) {
     fprintf(stderr, "cylinder: error: fail to close '%s'\n", cell_path);
@@ -478,9 +476,9 @@ int main(int argc, char **argv) {
     fprintf(stderr, "cylinder: error: fail to close '%s'\n", field_path);
     exit(1);
   }
-  coordOrigin.x &= ~((1 << maxLevel) - 1);
-  coordOrigin.y &= ~((1 << maxLevel) - 1);
-  coordOrigin.z &= ~((1 << maxLevel) - 1);
+  origin.x &= ~((1 << maxlevel) - 1);
+  origin.y &= ~((1 << maxlevel) - 1);
+  origin.z &= ~((1 << maxlevel) - 1);
 
   qsort(cells, ncell, sizeof *cells, comp);
   thrust::device_vector<Cell> d_cells{cells, cells + ncell};
@@ -489,7 +487,7 @@ int main(int argc, char **argv) {
   blockSize = 512;
   numBlocks = (numJobs + blockSize - 1) / blockSize;
   buildMortonArray<<<numBlocks, blockSize>>>(
-	thrust::raw_pointer_cast(d_mortonArray.data()), coordOrigin,
+	thrust::raw_pointer_cast(d_mortonArray.data()), origin,
 	thrust::raw_pointer_cast(d_cells.data()), d_cells.size());
   cudaDeviceSynchronize();
   thrust::sort(d_mortonArray.begin(), d_mortonArray.end(), CompareMorton());
@@ -502,8 +500,8 @@ int main(int argc, char **argv) {
   blockSize = 512;
   numBlocks = (numJobs + blockSize - 1) / blockSize;
   extractTriangles<<<numBlocks, blockSize>>>(
-      thrust::raw_pointer_cast(d_mortonArray.data()), coordOrigin,
-      thrust::raw_pointer_cast(d_cells.data()), d_cells.size(), maxLevel,
+      thrust::raw_pointer_cast(d_mortonArray.data()), origin,
+      thrust::raw_pointer_cast(d_cells.data()), d_cells.size(), maxlevel,
       isoValue, thrust::raw_pointer_cast(d_triangleVertices.data()),
       d_triangleVertices.size(),
       thrust::raw_pointer_cast(d_atomicCounter.data()));
@@ -515,8 +513,8 @@ int main(int argc, char **argv) {
   blockSize = 512;
   numBlocks = (numJobs + blockSize - 1) / blockSize;
   extractTriangles<<<numBlocks, blockSize>>>(
-      thrust::raw_pointer_cast(d_mortonArray.data()), coordOrigin,
-      thrust::raw_pointer_cast(d_cells.data()), d_cells.size(), maxLevel,
+      thrust::raw_pointer_cast(d_mortonArray.data()), origin,
+      thrust::raw_pointer_cast(d_cells.data()), d_cells.size(), maxlevel,
       isoValue, thrust::raw_pointer_cast(d_triangleVertices.data()),
       d_triangleVertices.size(),
       thrust::raw_pointer_cast(d_atomicCounter.data()));
@@ -617,7 +615,7 @@ int main(int argc, char **argv) {
 	Found = 1;
 	break;
       }
-      if (level == maxLevel)
+      if (level == maxlevel)
 	break;
       level++;
       needl.lower.x &= (~0 << level);
