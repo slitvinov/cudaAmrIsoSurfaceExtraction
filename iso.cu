@@ -424,8 +424,6 @@ int main(int argc, char **argv) {
     exit(1);
   }
   coordOrigin = 1 << 30;
-  vec3i bounds_lower(1 << 30);
-  vec3i bounds_upper(-(1 << 30));
   maxLevel = 0;
   numCells = 0;
   if ((cell_file = fopen(cell_path, "r")) == NULL) {
@@ -466,9 +464,6 @@ int main(int argc, char **argv) {
       exit(1);
     }
     maxLevel = std::max(maxLevel, cells[i].level);
-    bounds_lower = min(bounds_lower, cells[i].lower);
-    bounds_upper =
-	max(bounds_upper, cells[i].lower + vec3i(1 << cells[i].level));
     coordOrigin = min(coordOrigin, cells[i].lower);
   }
   if (fclose(cell_file) != 0) {
