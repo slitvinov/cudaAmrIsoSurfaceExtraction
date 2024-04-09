@@ -138,16 +138,6 @@ struct TriangleVertex {
   uint32_t triangleAndVertexID;
 };
 
-struct CompareByCoordsLowerOnly {
-  __host__ __device__ CompareByCoordsLowerOnly(const vec3i origin)
-      : origin(origin) {}
-  __host__ __device__ bool operator()(const Cell &lhs,
-                                      const CellCoords &rhs) const {
-    return (mortonCode(lhs.lower - origin) < mortonCode(rhs.lower - origin));
-  }
-  const vec3i origin;
-};
-
 struct CompareVertices {
   __host__ __device__ bool operator()(const TriangleVertex &lhs,
                                       const TriangleVertex &rhs) const {
