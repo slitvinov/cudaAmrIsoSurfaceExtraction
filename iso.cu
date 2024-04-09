@@ -123,13 +123,15 @@ struct Morton {
   const Cell *cell;
 };
 
-struct CompareMorton {
-  inline __host__ __device__ bool operator()(const Morton &a, const Morton &b) {
-    return a.morton < b.morton;
-  }
-  inline __host__ __device__ bool operator()(const Morton &a,
-                                             const uint64_t b) {
+struct CompareMorton0 {
+  __device__ bool operator()(const Morton &a, const uint64_t b) {
     return a.morton < b;
+  }
+};
+
+struct CompareMorton1 {
+  __device__ bool operator()(const Morton &a, const Morton &b) {
+    return a.morton < b.morton;
   }
 };
 
@@ -161,7 +163,7 @@ struct AMR {
     const Morton *const __restrict__ end = mortonArray + ncell;
 
     const Morton *it = thrust::system::detail::generic::scalar::lower_bound(
-        begin, end, mortonCode(coords.lower - origin), CompareMorton());
+        begin, end, mortonCode(coords.lower - origin), CompareMorton0());
 
     if (it == end)
       return false;
@@ -460,9 +462,6 @@ positional:
     origin.y = std::min(origin.y, cells[i].lower.y);
     origin.z = std::min(origin.z, cells[i].lower.z);
   }
-  origin.x &= ~((1 << maxlevel) - 1);
-  origin.y &= ~((1 << maxlevel) - 1);
-  origin.z &= ~((1 << maxlevel) - 1);
   if (Verbose)
     fprintf(stderr, "iso: ncell, maxlevel, origin: %ld %d [%d %d %d]\n", ncell,
             maxlevel, origin.x, origin.y, origin.z);
@@ -488,7 +487,7 @@ positional:
       thrust::raw_pointer_cast(d_mortonArray.data()), origin,
       thrust::raw_pointer_cast(d_cells.data()), d_cells.size());
   cudaDeviceSynchronize();
-  thrust::sort(d_mortonArray.begin(), d_mortonArray.end(), CompareMorton());
+  thrust::sort(d_mortonArray.begin(), d_mortonArray.end(), CompareMorton1());
 
   cudaDeviceSynchronize();
   thrust::device_vector<int> d_atomicCounter(1);
