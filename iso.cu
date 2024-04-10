@@ -626,7 +626,8 @@ positional:
       attr[j] = 0;
     }
   }
-  fprintf(stderr, "iso: nlost/nvert: %ld/%ld\n", nlost, nvert);
+  if (Verbose)
+    fprintf(stderr, "iso: nlost/nvert: %ld/%ld\n", nlost, nvert);
 
   if ((file = fopen(attr_path, "w")) == NULL) {
     fprintf(stderr, "iso: error: fail to open '%s'\n", attr_path);
