@@ -603,7 +603,7 @@ positional:
     for (;;) {
       result = (struct Cell *)bsearch(&needl, cells, ncell, sizeof(struct Cell),
                                       comp);
-      if (result != NULL) {
+      if (result != NULL && level == result->level) {
         Found = 1;
         break;
       }
