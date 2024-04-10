@@ -122,7 +122,7 @@ struct CompareMorton1 {
 
 struct TriangleVertex {
   vec3f position;
-  uint32_t triangleAndVertexID;
+  uint32_t id;
 };
 
 struct CompareVertices {
@@ -292,7 +292,7 @@ createVertexArray(int *cnt, const TriangleVertex *const __restrict__ vertices,
     return;
   vert[id] = (float3 &)vertex.position;
   for (i = tid; i < nvert && vertices[i].position == vertex.position; i++) {
-    j = vertices[i].triangleAndVertexID;
+    j = vertices[i].id;
     k = j % 4;
     l = j / 4;
     tri = &index[l].x;
