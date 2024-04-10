@@ -43,8 +43,8 @@ __host__ __device__ bool operator==(const vec3i &a, const vec3i &b) {
 }
 
 struct vec3f {
-  __host__ __device__ vec3f() {}
-  __host__ __device__ vec3f(const float x, const float y, const float z)
+  __device__ vec3f() {}
+  __device__ vec3f(const float x, const float y, const float z)
       : x(x), y(y), z(z) {}
   __host__ __device__ vec3f(const float f) : x(f), y(f), z(f) {}
   __host__ __device__ vec3f(const vec3i o) : x(o.x), y(o.y), z(o.z) {}
@@ -55,39 +55,37 @@ struct vec3f {
 __host__ __device__ vec3f operator+(const vec3f &a, const vec3f &b) {
   return {a.x + b.x, a.y + b.y, a.z + b.z};
 }
-__host__ __device__ vec3f operator-(const vec3f &a, const vec3f &b) {
+__device__ vec3f operator-(const vec3f &a, const vec3f &b) {
   return {a.x - b.x, a.y - b.y, a.z - b.z};
 }
-__host__ __device__ vec3f operator*(const vec3f &a, const vec3f &b) {
+__device__ vec3f operator*(const vec3f &a, const vec3f &b) {
   return {a.x * b.x, a.y * b.y, a.z * b.z};
 }
-__host__ __device__ vec3f operator*(const vec3f &a, const float b) {
+__device__ vec3f operator*(const vec3f &a, const float b) {
   return {a.x * b, a.y * b, a.z * b};
 }
-__host__ __device__ bool operator==(const vec3f &a, const vec3f &b) {
+__device__ bool operator==(const vec3f &a, const vec3f &b) {
   return a.x == b.x && a.y == b.y && a.z == b.z;
 }
-
 __host__ __device__ bool operator<(const vec3f &a, const vec3f &b) {
   return (a.x < b.x) ||
          ((a.x == b.x) && ((a.y < b.y) || (a.y == b.y) && (a.z < b.z)));
 }
-
-__host__ __device__ float4 operator+(const float4 &a, const float4 &b) {
+__device__ float4 operator+(const float4 &a, const float4 &b) {
   return {a.x + b.x, a.y + b.y, a.z + b.z, a.w + b.w};
 }
-__host__ __device__ float4 operator*(const float b, const float4 &a) {
+__device__ float4 operator*(const float b, const float4 &a) {
   return {a.x * b, a.y * b, a.z * b, a.w * b};
 }
-__host__ __device__ bool operator==(const float4 &a, const float4 &b) {
+__device__ bool operator==(const float4 &a, const float4 &b) {
   return a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w;
 }
 
 struct CellCoords {
-  __host__ __device__ CellCoords neighbor(const vec3i &delta) const {
+  __device__ CellCoords neighbor(const vec3i &delta) const {
     return {lower + delta * (1 << level), level};
   }
-  __host__ __device__ vec3f center() const {
+  __device__ vec3f center() const {
     return vec3f(lower) + vec3f(0.5f * (1 << level));
   }
   vec3i lower;
@@ -103,7 +101,7 @@ __host__ __device__ bool operator==(const CellCoords &a, const CellCoords &b) {
 }
 
 struct Cell : public CellCoords {
-  __device__ __host__ float4 asDualVertex() const {
+  __device__ float4 asDualVertex() const {
     return make_float4(center().x, center().y, center().z, scalar);
   }
   float scalar, field;
@@ -114,9 +112,7 @@ __host__ __device__ bool operator==(const Cell &a, const Cell &b) {
          (a.scalar == b.scalar);
 }
 
-__host__ __device__ bool operator!=(const Cell &a, const Cell &b) {
-  return !(a == b);
-}
+__device__ bool operator!=(const Cell &a, const Cell &b) { return !(a == b); }
 
 struct Morton {
   uint64_t morton;
@@ -141,8 +137,8 @@ struct TriangleVertex {
 };
 
 struct CompareVertices {
-  __host__ __device__ bool operator()(const TriangleVertex &lhs,
-                                      const TriangleVertex &rhs) const {
+  __device__ bool operator()(const TriangleVertex &lhs,
+                             const TriangleVertex &rhs) const {
     const float4 a = (const float4 &)lhs;
     const float4 b = (const float4 &)rhs;
 
@@ -151,14 +147,13 @@ struct CompareVertices {
 };
 
 struct AMR {
-  __host__ __device__ AMR(const Morton *const __restrict__ mortonArray,
-                          const vec3i origin,
-                          const Cell *const __restrict__ cellArray,
-                          const int ncell, const int maxlevel)
+  __device__ AMR(const Morton *const __restrict__ mortonArray,
+                 const vec3i origin, const Cell *const __restrict__ cellArray,
+                 const int ncell, const int maxlevel)
       : mortonArray(mortonArray), origin(origin), cellArray(cellArray),
         ncell(ncell), maxlevel(maxlevel) {}
 
-  __host__ __device__ bool findActual(Cell &result, const CellCoords &coords) {
+  __device__ bool findActual(struct Cell &result, const CellCoords &coords) {
     const Morton *const __restrict__ begin = mortonArray;
     const Morton *const __restrict__ end = mortonArray + ncell;
 
@@ -212,9 +207,8 @@ __global__ void buildMortonArray(Morton *const __restrict__ mortonArray,
 }
 
 struct IsoExtractor {
-  __device__ __host__ IsoExtractor(const float isoValue,
-                                   TriangleVertex *outputArray,
-                                   int outputArraySize, int *p_atomicCounter)
+  __device__ IsoExtractor(const float isoValue, TriangleVertex *outputArray,
+                          int outputArraySize, int *p_atomicCounter)
       : isoValue(isoValue), outputArray(outputArray),
         outputArraySize(outputArraySize), p_atomicCounter(p_atomicCounter) {}
 
@@ -607,7 +601,8 @@ positional:
     needl.lower.z = vert[j].z;
     level = 0;
     for (;;) {
-      result = (Cell *)bsearch(&needl, cells, ncell, sizeof(Cell), comp);
+      result = (struct Cell *)bsearch(&needl, cells, ncell, sizeof(struct Cell),
+                                      comp);
       if (result != NULL) {
         Found = 1;
         break;
