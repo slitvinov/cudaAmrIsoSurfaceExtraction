@@ -126,12 +126,9 @@ struct TriangleVertex {
 };
 
 struct CompareVertices {
-  __device__ bool operator()(const TriangleVertex &lhs,
-                             const TriangleVertex &rhs) const {
-    const float4 a = (const float4 &)lhs;
-    const float4 b = (const float4 &)rhs;
-
-    return (const vec3f &)a < (const vec3f &)b;
+  __device__ bool operator()(const TriangleVertex &a,
+                             const TriangleVertex &b) const {
+    return a.position < b.position;
   }
 };
 
