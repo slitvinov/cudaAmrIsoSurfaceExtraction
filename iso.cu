@@ -197,7 +197,7 @@ __global__ void extractTriangles(const Morton *const __restrict__ mortonArray,
                                  TriangleVertex *__restrict__ out, int size,
                                  int *cnt) {
   size_t tid;
-  int x, y, z, triangleID, index, i, j, ii, wid, did, dx, dy, dz, ix, iy, iz;
+  int x, y, z, id, index, i, j, k, ii, wid, did, dx, dy, dz, ix, iy, iz;
   int8_t *edge, *vert;
   float t;
   float4 v0, v1, triVertex[3];
@@ -263,12 +263,15 @@ __global__ void extractTriangles(const Morton *const __restrict__ mortonArray,
       continue;
     if (triVertex[1] == triVertex[2])
       continue;
-    triangleID = atomicAdd(cnt, 1);
-    if (triangleID >= 3 * size)
+    id = atomicAdd(cnt, 1);
+    if (id >= 3 * size)
       continue;
     for (j = 0; j < 3; j++) {
-      (int &)triVertex[j].w = (4 * triangleID + j);
-      (float4 &)out[3 * triangleID + j] = triVertex[j];
+      k = 3 * id + j;
+      out[k].position.x = triVertex[j].x;
+      out[k].position.y = triVertex[j].y;
+      out[k].position.z = triVertex[j].z;
+      out[k].id = 4 * id + j;
     }
   }
 }
