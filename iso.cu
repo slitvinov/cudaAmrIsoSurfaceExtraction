@@ -202,33 +202,29 @@ __global__ void buildMortonArray(Morton *const __restrict__ mortonArray,
 
 __global__ void extractTriangles(const Morton *const __restrict__ mortonArray,
                                  const Cell *const __restrict__ cellArray,
-                                 const int ncell, const int maxlevel,
-                                 const float iso,
-                                 TriangleVertex *__restrict__ out,
-                                 const int size, int *cnt) {
-  int x, y, z;
-  int triangleID, index, i, j, ii;
+                                 int ncell, int maxlevel, float iso,
+                                 TriangleVertex *__restrict__ out, int size,
+                                 int *cnt) {
+  size_t tid;
+  int x, y, z, triangleID, index, i, j, ii, wid, did, dx, dy, dz, ix, iy, iz;
   int8_t *edge, *vert;
   float t;
   float4 v0, v1, triVertex[3];
+  vec3i lower;
+  Cell corner[2][2][2], cell;
   AMR amr(mortonArray, cellArray, ncell, maxlevel);
-
-  const size_t tid = threadIdx.x + size_t(blockDim.x) * blockIdx.x;
-
-  const int wid = tid / 8;
+  tid = threadIdx.x + size_t(blockDim.x) * blockIdx.x;
+  wid = tid / 8;
   if (wid >= ncell)
     return;
-  const int did = tid % 8;
-  const Cell cell = cellArray[wid];
-  const int dz = (did & 4) ? 1 : -1;
-  const int dy = (did & 2) ? 1 : -1;
-  const int dx = (did & 1) ? 1 : -1;
-
-  Cell corner[2][2][2];
-  for (int iz = 0; iz < 2; iz++)
-    for (int iy = 0; iy < 2; iy++)
-      for (int ix = 0; ix < 2; ix++) {
-        vec3i lower;
+  did = tid % 8;
+  cell = cellArray[wid];
+  dz = (did & 4) ? 1 : -1;
+  dy = (did & 2) ? 1 : -1;
+  dx = (did & 1) ? 1 : -1;
+  for (iz = 0; iz < 2; iz++)
+    for (iy = 0; iy < 2; iy++)
+      for (ix = 0; ix < 2; ix++) {
         lower.x = cell.lower.x + dx * ix * (1 << cell.level);
         lower.y = cell.lower.y + dy * iy * (1 << cell.level);
         lower.z = cell.lower.z + dz * iz * (1 << cell.level);
@@ -236,12 +232,10 @@ __global__ void extractTriangles(const Morton *const __restrict__ mortonArray,
           // corner does not exist - currentcell is on a boundary, and
           // this is not a dual cell
           return;
-
         if (corner[iz][iy][ix].level < cell.level)
           // somebody else will generate this same cell from a finer
           // level...
           return;
-
         if (corner[iz][iy][ix].level == cell.level && corner[iz][iy][ix] < cell)
           // this other cell will generate this dual cell...
           return;
@@ -249,7 +243,6 @@ __global__ void extractTriangles(const Morton *const __restrict__ mortonArray,
   x = dx == -1;
   y = dy == -1;
   z = dz == -1;
-
   float4 vertex[8] = {corner[0 + z][0 + y][0 + x].asDualVertex(),
                       corner[0 + z][0 + y][1 - x].asDualVertex(),
                       corner[0 + z][1 - y][1 - x].asDualVertex(),
@@ -258,14 +251,12 @@ __global__ void extractTriangles(const Morton *const __restrict__ mortonArray,
                       corner[1 - z][0 + y][1 - x].asDualVertex(),
                       corner[1 - z][1 - y][1 - x].asDualVertex(),
                       corner[1 - z][1 - y][0 + x].asDualVertex()};
-
   index = 0;
   for (i = 0; i < 8; i++)
     if (vertex[i].w > iso)
       index += (1 << i);
   if (index == 0 || index == 0xff)
     return;
-
   for (edge = &vtkMarchingCubesTriangleCases[index][0]; edge[0] > -1;
        edge += 3) {
     for (ii = 0; ii < 3; ii++) {
@@ -275,18 +266,15 @@ __global__ void extractTriangles(const Morton *const __restrict__ mortonArray,
       t = (iso - v0.w) / float(v1.w - v0.w);
       triVertex[ii] = (1.f - t) * v0 + t * v1;
     }
-
     if (triVertex[1] == triVertex[0])
       continue;
     if (triVertex[2] == triVertex[0])
       continue;
     if (triVertex[1] == triVertex[2])
       continue;
-
     triangleID = atomicAdd(cnt, 1);
     if (triangleID >= 3 * size)
       continue;
-
     for (j = 0; j < 3; j++) {
       (int &)triVertex[j].w = (4 * triangleID + j);
       (float4 &)out[3 * triangleID + j] = triVertex[j];
