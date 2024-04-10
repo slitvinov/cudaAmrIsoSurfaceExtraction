@@ -209,20 +209,20 @@ struct IsoExtractor {
   TriangleVertex *const outputArray;
   const int outputArraySize;
   int *const p_atomicCounter;
-  void __device__ doMarchingCubesOn(const vec3i m, const Cell zOrder[2][2][2]) {
+  void __device__ doMarchingCubesOn(int x, int y, int z, const Cell zOrder[2][2][2]) {
     int triangleID, index, i, j, ii;
     int8_t *edge, *vert;
     float t;
     float4 v0, v1, triVertex[3];
     float4 vertex[8] = {
-        zOrder[0 + m.z][0 + m.y][0 + m.x].asDualVertex(),
-        zOrder[0 + m.z][0 + m.y][1 - m.x].asDualVertex(),
-        zOrder[0 + m.z][1 - m.y][1 - m.x].asDualVertex(),
-        zOrder[0 + m.z][1 - m.y][0 + m.x].asDualVertex(),
-        zOrder[1 - m.z][0 + m.y][0 + m.x].asDualVertex(),
-        zOrder[1 - m.z][0 + m.y][1 - m.x].asDualVertex(),
-        zOrder[1 - m.z][1 - m.y][1 - m.x].asDualVertex(),
-        zOrder[1 - m.z][1 - m.y][0 + m.x].asDualVertex()};
+        zOrder[0 + z][0 + y][0 + x].asDualVertex(),
+        zOrder[0 + z][0 + y][1 - x].asDualVertex(),
+        zOrder[0 + z][1 - y][1 - x].asDualVertex(),
+        zOrder[0 + z][1 - y][0 + x].asDualVertex(),
+        zOrder[1 - z][0 + y][0 + x].asDualVertex(),
+        zOrder[1 - z][0 + y][1 - x].asDualVertex(),
+        zOrder[1 - z][1 - y][1 - x].asDualVertex(),
+        zOrder[1 - z][1 - y][0 + x].asDualVertex()};
 
     index = 0;
     for (i = 0; i < 8; i++)
@@ -305,7 +305,7 @@ __global__ void extractTriangles(const Morton *const __restrict__ mortonArray,
 
   IsoExtractor isoExtractor(isoValue, outVertex, outVertexSize,
                             p_numGeneratedTriangles);
-  isoExtractor.doMarchingCubesOn({dx == -1, dy == -1, dz == -1}, corner);
+  isoExtractor.doMarchingCubesOn(dx == -1, dy == -1, dz == -1, corner);
 }
 
 __global__ void
