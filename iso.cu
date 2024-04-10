@@ -60,12 +60,7 @@ __device__ bool operator==(const float4 &a, const float4 &b) {
   return a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w;
 }
 
-struct CellCoords {
-  vec3i lower;
-  int level;
-};
-
-struct Cell : public CellCoords {
+struct Cell {
   __device__ float4 asDualVertex() const {
     float x, y, z;
     x = lower.x + 0.5 * (1 << level);
@@ -73,6 +68,8 @@ struct Cell : public CellCoords {
     z = lower.z + 0.5 * (1 << level);
     return make_float4(x, y, z, scalar);
   }
+  vec3i lower;
+  int level;
   float scalar, field;
 };
 
