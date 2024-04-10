@@ -81,10 +81,6 @@ __host__ __device__ bool operator<(const CellCoords &a, const CellCoords &b) {
   return (a.lower < b.lower) || (a.lower == b.lower && b.level < b.level);
 }
 
-__host__ __device__ bool operator==(const CellCoords &a, const CellCoords &b) {
-  return (a.lower == b.lower) && (a.level == b.level);
-}
-
 struct Cell : public CellCoords {
   __device__ float4 asDualVertex() const {
     float x, y, z;
