@@ -278,15 +278,14 @@ __global__ void extractTriangles(const Morton *const __restrict__ mortonArray,
 
   const size_t tid = threadIdx.x + size_t(blockDim.x) * blockIdx.x;
 
-  const int workID = tid / 8;
-  if (workID >= ncell)
+  const int wid = tid / 8;
+  if (wid >= ncell)
     return;
-  const int directionID = tid % 8;
-  const Cell currentCell = cellArray[workID];
-
-  const int dz = (directionID & 4) ? 1 : -1;
-  const int dy = (directionID & 2) ? 1 : -1;
-  const int dx = (directionID & 1) ? 1 : -1;
+  const int did = tid % 8;
+  const Cell currentCell = cellArray[wid];
+  const int dz = (did & 4) ? 1 : -1;
+  const int dy = (did & 2) ? 1 : -1;
+  const int dx = (did & 1) ? 1 : -1;
 
   Cell corner[2][2][2];
   for (int iz = 0; iz < 2; iz++)
