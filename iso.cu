@@ -200,33 +200,33 @@ __global__ void buildMortonArray(Morton *const __restrict__ mortonArray,
 }
 
 struct IsoExtractor {
-  __device__ IsoExtractor(const float isoValue, TriangleVertex *outputArray,
-                          int outputArraySize, int *p_atomicCounter)
-      : isoValue(isoValue), outputArray(outputArray),
-        outputArraySize(outputArraySize), p_atomicCounter(p_atomicCounter) {}
+  __device__ IsoExtractor(const float iso, TriangleVertex *out,
+                          int size, int *cnt)
+      : iso(iso), out(out),
+        size(size), cnt(cnt) {}
 
-  const float isoValue;
-  TriangleVertex *const outputArray;
-  const int outputArraySize;
-  int *const p_atomicCounter;
-  void __device__ doMarchingCubesOn(int x, int y, int z, const Cell zOrder[2][2][2]) {
+  const float iso;
+  TriangleVertex *const out;
+  const int size;
+  int *const cnt;
+  void __device__ doMarchingCubesOn(int x, int y, int z, const Cell corner[2][2][2]) {
     int triangleID, index, i, j, ii;
     int8_t *edge, *vert;
     float t;
     float4 v0, v1, triVertex[3];
     float4 vertex[8] = {
-        zOrder[0 + z][0 + y][0 + x].asDualVertex(),
-        zOrder[0 + z][0 + y][1 - x].asDualVertex(),
-        zOrder[0 + z][1 - y][1 - x].asDualVertex(),
-        zOrder[0 + z][1 - y][0 + x].asDualVertex(),
-        zOrder[1 - z][0 + y][0 + x].asDualVertex(),
-        zOrder[1 - z][0 + y][1 - x].asDualVertex(),
-        zOrder[1 - z][1 - y][1 - x].asDualVertex(),
-        zOrder[1 - z][1 - y][0 + x].asDualVertex()};
+        corner[0 + z][0 + y][0 + x].asDualVertex(),
+        corner[0 + z][0 + y][1 - x].asDualVertex(),
+        corner[0 + z][1 - y][1 - x].asDualVertex(),
+        corner[0 + z][1 - y][0 + x].asDualVertex(),
+        corner[1 - z][0 + y][0 + x].asDualVertex(),
+        corner[1 - z][0 + y][1 - x].asDualVertex(),
+        corner[1 - z][1 - y][1 - x].asDualVertex(),
+        corner[1 - z][1 - y][0 + x].asDualVertex()};
 
     index = 0;
     for (i = 0; i < 8; i++)
-      if (vertex[i].w > isoValue)
+      if (vertex[i].w > iso)
         index += (1 << i);
     if (index == 0 || index == 0xff)
       return;
@@ -237,7 +237,7 @@ struct IsoExtractor {
         vert = vtkMarchingCubes_edges[edge[ii]];
         v0 = vertex[vert[0]];
         v1 = vertex[vert[1]];
-        t = (isoValue - v0.w) / float(v1.w - v0.w);
+        t = (iso - v0.w) / float(v1.w - v0.w);
         triVertex[ii] = (1.f - t) * v0 + t * v1;
       }
 
@@ -248,13 +248,13 @@ struct IsoExtractor {
       if (triVertex[1] == triVertex[2])
         continue;
 
-      triangleID = atomicAdd(p_atomicCounter, 1);
-      if (triangleID >= 3 * outputArraySize)
+      triangleID = atomicAdd(cnt, 1);
+      if (triangleID >= 3 * size)
         continue;
 
       for (j = 0; j < 3; j++) {
         (int &)triVertex[j].w = (4 * triangleID + j);
-        (float4 &)outputArray[3 * triangleID + j] = triVertex[j];
+        (float4 &)out[3 * triangleID + j] = triVertex[j];
       }
     }
   }
@@ -263,10 +263,10 @@ struct IsoExtractor {
 __global__ void extractTriangles(const Morton *const __restrict__ mortonArray,
                                  const Cell *const __restrict__ cellArray,
                                  const int ncell, const int maxlevel,
-                                 const float isoValue,
-                                 TriangleVertex *__restrict__ outVertex,
-                                 const int outVertexSize,
-                                 int *p_numGeneratedTriangles) {
+                                 const float iso,
+                                 TriangleVertex *__restrict__ out,
+                                 const int size,
+                                 int *cnt) {
   AMR amr(mortonArray, cellArray, ncell, maxlevel);
 
   const size_t tid = threadIdx.x + size_t(blockDim.x) * blockIdx.x;
@@ -303,8 +303,7 @@ __global__ void extractTriangles(const Morton *const __restrict__ mortonArray,
           return;
       }
 
-  IsoExtractor isoExtractor(isoValue, outVertex, outVertexSize,
-                            p_numGeneratedTriangles);
+  IsoExtractor isoExtractor(iso, out, size, cnt);
   isoExtractor.doMarchingCubesOn(dx == -1, dy == -1, dz == -1, corner);
 }
 
@@ -340,7 +339,7 @@ static int comp(const void *av, const void *bv) {
 }
 
 int main(int argc, char **argv) {
-  float isoValue, *attr;
+  float iso, *attr;
   float3 *vert;
   int3 *tri;
   size_t numJobs;
@@ -358,7 +357,7 @@ int main(int argc, char **argv) {
     switch (argv[0][1]) {
     case 'h':
       fprintf(stderr,
-              "Usage: iso [-v] in.cells in.scalar in.field isoValue mesh\n");
+              "Usage: iso [-v] in.cells in.scalar in.field iso mesh\n");
       exit(1);
     case 'v':
       Verbose = 1;
@@ -384,10 +383,10 @@ positional:
     exit(1);
   }
   if (*argv == NULL) {
-    fprintf(stderr, "iso: error: isoValue is no given\n");
+    fprintf(stderr, "iso: error: iso is no given\n");
     exit(1);
   }
-  isoValue = strtod(*argv, &end);
+  iso = strtod(*argv, &end);
   if (*end != '\0') {
     fprintf(stderr, "iso: error: '%s' is not a number\n", *argv);
     exit(1);
@@ -486,7 +485,7 @@ positional:
   extractTriangles<<<numBlocks, blockSize>>>(
       thrust::raw_pointer_cast(d_mortonArray.data()),
       thrust::raw_pointer_cast(d_cells.data()), d_cells.size(), maxlevel,
-      isoValue, thrust::raw_pointer_cast(d_triangleVertices.data()),
+      iso, thrust::raw_pointer_cast(d_triangleVertices.data()),
       d_triangleVertices.size(),
       thrust::raw_pointer_cast(d_atomicCounter.data()));
   cudaDeviceSynchronize();
@@ -499,7 +498,7 @@ positional:
   extractTriangles<<<numBlocks, blockSize>>>(
       thrust::raw_pointer_cast(d_mortonArray.data()),
       thrust::raw_pointer_cast(d_cells.data()), d_cells.size(), maxlevel,
-      isoValue, thrust::raw_pointer_cast(d_triangleVertices.data()),
+      iso, thrust::raw_pointer_cast(d_triangleVertices.data()),
       d_triangleVertices.size(),
       thrust::raw_pointer_cast(d_atomicCounter.data()));
   cudaDeviceSynchronize();
