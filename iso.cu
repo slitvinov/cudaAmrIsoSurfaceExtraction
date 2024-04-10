@@ -11,13 +11,7 @@ struct vec3i {
   int x, y, z;
 };
 
-__device__ vec3i operator+(const vec3i &a, const vec3i &b) {
-  return {a.x + b.x, a.y + b.y, a.z + b.z};
-}
-__device__ vec3i operator*(const vec3i &a, const int b) {
-  return {a.x * b, a.y * b, a.z * b};
-}
-__device__ __host__ vec3i operator>>(const vec3i v, const int s) {
+__device__ vec3i operator>>(const vec3i v, const int s) {
   return vec3i(v.x >> s, v.y >> s, v.z >> s);
 }
 
