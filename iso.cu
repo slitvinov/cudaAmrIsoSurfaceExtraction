@@ -79,9 +79,6 @@ __device__ bool operator==(const float4 &a, const float4 &b) {
 }
 
 struct CellCoords {
-  __device__ CellCoords neighbor(const vec3i &delta) const {
-    return {lower + delta * (1 << level), level};
-  }
   __device__ vec3f center() const {
     return vec3f(lower) + vec3f(0.5f * (1 << level));
   }
@@ -282,7 +279,7 @@ __global__ void extractTriangles(const Morton *const __restrict__ mortonArray,
   if (wid >= ncell)
     return;
   const int did = tid % 8;
-  const Cell currentCell = cellArray[wid];
+  const Cell cell = cellArray[wid];
   const int dz = (did & 4) ? 1 : -1;
   const int dy = (did & 2) ? 1 : -1;
   const int dx = (did & 1) ? 1 : -1;
@@ -291,21 +288,22 @@ __global__ void extractTriangles(const Morton *const __restrict__ mortonArray,
   for (int iz = 0; iz < 2; iz++)
     for (int iy = 0; iy < 2; iy++)
       for (int ix = 0; ix < 2; ix++) {
-        const vec3i delta = vec3i(dx * ix, dy * iy, dz * iz);
-        const CellCoords cornerCoords = currentCell.neighbor(delta);
-
-        if (!amr.findActual(corner[iz][iy][ix], cornerCoords))
+        struct CellCoords c;
+        c.level = cell.level;
+        c.lower.x = cell.lower.x + dx * ix * (1 << cell.level);
+        c.lower.y = cell.lower.y + dy * iy * (1 << cell.level);
+        c.lower.z = cell.lower.z + dz * iz * (1 << cell.level);
+        if (!amr.findActual(corner[iz][iy][ix], c))
           // corner does not exist - currentcell is on a boundary, and
           // this is not a dual cell
           return;
 
-        if (corner[iz][iy][ix].level < currentCell.level)
+        if (corner[iz][iy][ix].level < cell.level)
           // somebody else will generate this same cell from a finer
           // level...
           return;
 
-        if (corner[iz][iy][ix].level == currentCell.level &&
-            corner[iz][iy][ix] < currentCell)
+        if (corner[iz][iy][ix].level == cell.level && corner[iz][iy][ix] < cell)
           // this other cell will generate this dual cell...
           return;
       }
