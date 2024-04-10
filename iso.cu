@@ -43,18 +43,6 @@ struct vec3f {
   float x, y, z;
 };
 
-__host__ __device__ vec3f operator+(const vec3f &a, const vec3f &b) {
-  return {a.x + b.x, a.y + b.y, a.z + b.z};
-}
-__device__ vec3f operator-(const vec3f &a, const vec3f &b) {
-  return {a.x - b.x, a.y - b.y, a.z - b.z};
-}
-__device__ vec3f operator*(const vec3f &a, const vec3f &b) {
-  return {a.x * b.x, a.y * b.y, a.z * b.z};
-}
-__device__ vec3f operator*(const vec3f &a, const float b) {
-  return {a.x * b, a.y * b, a.z * b};
-}
 __device__ bool operator==(const vec3f &a, const vec3f &b) {
   return a.x == b.x && a.y == b.y && a.z == b.z;
 }
