@@ -65,10 +65,6 @@ struct CellCoords {
   int level;
 };
 
-__host__ __device__ bool operator<(const CellCoords &a, const CellCoords &b) {
-  return (a.lower < b.lower) || (a.lower == b.lower && b.level < b.level);
-}
-
 struct Cell : public CellCoords {
   __device__ float4 asDualVertex() const {
     float x, y, z;
@@ -204,7 +200,8 @@ __global__ void extractTriangles(const Morton *const __restrict__ mortonArray,
           // somebody else will generate this same cell from a finer
           // level...
           return;
-        if (corner[iz][iy][ix].level == cell.level && corner[iz][iy][ix] < cell)
+        if (corner[iz][iy][ix].level == cell.level &&
+            corner[iz][iy][ix].lower < cell.lower)
           // this other cell will generate this dual cell...
           return;
       }
