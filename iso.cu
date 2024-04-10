@@ -596,8 +596,6 @@ positional:
   nlost = 0;
   for (j = 0; j < nvert; j++) {
     Found = 0;
-    if (Verbose)
-      fprintf(stderr, "%g %g %g\n", vert[j].x, vert[j].y, vert[j].z);
     needl.lower.x = vert[j].x;
     needl.lower.y = vert[j].y;
     needl.lower.z = vert[j].z;
@@ -606,6 +604,8 @@ positional:
       result = (struct Cell *)bsearch(&needl, cells, ncell, sizeof(struct Cell),
                                       comp);
       if (result != NULL && level == result->level) {
+        if (Verbose)
+          fprintf(stderr, "level: %d\n", level);
         Found = 1;
         break;
       }
