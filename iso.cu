@@ -79,9 +79,6 @@ __device__ bool operator==(const float4 &a, const float4 &b) {
 }
 
 struct CellCoords {
-  __device__ vec3f center() const {
-    return vec3f(lower) + vec3f(0.5f * (1 << level));
-  }
   vec3i lower;
   int level;
 };
@@ -96,7 +93,11 @@ __host__ __device__ bool operator==(const CellCoords &a, const CellCoords &b) {
 
 struct Cell : public CellCoords {
   __device__ float4 asDualVertex() const {
-    return make_float4(center().x, center().y, center().z, scalar);
+    float x, y, z;
+    x = lower.x + 0.5 * (1 << level);
+    y = lower.y + 0.5 * (1 << level);
+    z = lower.z + 0.5 * (1 << level);
+    return make_float4(x, y, z, scalar);
   }
   float scalar, field;
 };
@@ -208,40 +209,35 @@ struct IsoExtractor {
   TriangleVertex *const outputArray;
   const int outputArraySize;
   int *const p_atomicCounter;
-
-  int __device__ allocTriangle() { return atomicAdd(p_atomicCounter, 1); }
-
-  void __device__ doMarchingCubesOn(const vec3i mirror,
-                                    const Cell zOrder[2][2][2]) {
-    // we have OUR cells in z-order, but VTK case table assumes
-    // everything is is VTK 'hexahedron' ordering, so let's rearrange
-    // ... and while doing so, also make sure that we flip based on
-    // which direction the parent cell created this dual from
+  void __device__ doMarchingCubesOn(const vec3i m, const Cell zOrder[2][2][2]) {
+    int triangleID, index, i, j, ii;
+    int8_t *edge, *vert;
+    float t;
+    float4 v0, v1, triVertex[3];
     float4 vertex[8] = {
-        zOrder[0 + mirror.z][0 + mirror.y][0 + mirror.x].asDualVertex(),
-        zOrder[0 + mirror.z][0 + mirror.y][1 - mirror.x].asDualVertex(),
-        zOrder[0 + mirror.z][1 - mirror.y][1 - mirror.x].asDualVertex(),
-        zOrder[0 + mirror.z][1 - mirror.y][0 + mirror.x].asDualVertex(),
-        zOrder[1 - mirror.z][0 + mirror.y][0 + mirror.x].asDualVertex(),
-        zOrder[1 - mirror.z][0 + mirror.y][1 - mirror.x].asDualVertex(),
-        zOrder[1 - mirror.z][1 - mirror.y][1 - mirror.x].asDualVertex(),
-        zOrder[1 - mirror.z][1 - mirror.y][0 + mirror.x].asDualVertex()};
+        zOrder[0 + m.z][0 + m.y][0 + m.x].asDualVertex(),
+        zOrder[0 + m.z][0 + m.y][1 - m.x].asDualVertex(),
+        zOrder[0 + m.z][1 - m.y][1 - m.x].asDualVertex(),
+        zOrder[0 + m.z][1 - m.y][0 + m.x].asDualVertex(),
+        zOrder[1 - m.z][0 + m.y][0 + m.x].asDualVertex(),
+        zOrder[1 - m.z][0 + m.y][1 - m.x].asDualVertex(),
+        zOrder[1 - m.z][1 - m.y][1 - m.x].asDualVertex(),
+        zOrder[1 - m.z][1 - m.y][0 + m.x].asDualVertex()};
 
-    int index = 0;
-    for (int i = 0; i < 8; i++)
+    index = 0;
+    for (i = 0; i < 8; i++)
       if (vertex[i].w > isoValue)
         index += (1 << i);
     if (index == 0 || index == 0xff)
       return;
 
-    for (const int8_t *edge = &vtkMarchingCubesTriangleCases[index][0];
+    for (edge = &vtkMarchingCubesTriangleCases[index][0];
          edge[0] > -1; edge += 3) {
-      float4 triVertex[3];
-      for (int ii = 0; ii < 3; ii++) {
-        const int8_t *vert = vtkMarchingCubes_edges[edge[ii]];
-        const float4 v0 = vertex[vert[0]];
-        const float4 v1 = vertex[vert[1]];
-        const float t = (isoValue - v0.w) / float(v1.w - v0.w);
+      for (ii = 0; ii < 3; ii++) {
+        vert = vtkMarchingCubes_edges[edge[ii]];
+        v0 = vertex[vert[0]];
+        v1 = vertex[vert[1]];
+        t = (isoValue - v0.w) / float(v1.w - v0.w);
         triVertex[ii] = (1.f - t) * v0 + t * v1;
       }
 
@@ -252,11 +248,11 @@ struct IsoExtractor {
       if (triVertex[1] == triVertex[2])
         continue;
 
-      const int triangleID = allocTriangle();
+      triangleID = atomicAdd(p_atomicCounter, 1);
       if (triangleID >= 3 * outputArraySize)
         continue;
 
-      for (int j = 0; j < 3; j++) {
+      for (j = 0; j < 3; j++) {
         (int &)triVertex[j].w = (4 * triangleID + j);
         (float4 &)outputArray[3 * triangleID + j] = triVertex[j];
       }
