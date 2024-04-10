@@ -147,19 +147,19 @@ struct AMR {
       : mortonArray(mortonArray), cellArray(cellArray), ncell(ncell),
         maxlevel(maxlevel) {}
 
-  __device__ bool findActual(struct Cell &result, const CellCoords &coords) {
+  __device__ bool findActual(struct Cell &result, const vec3i lower, int level) {
     const Morton *const __restrict__ begin = mortonArray;
     const Morton *const __restrict__ end = mortonArray + ncell;
 
     const Morton *it = thrust::system::detail::generic::scalar::lower_bound(
-        begin, end, mortonCode(coords.lower), CompareMorton0());
+        begin, end, mortonCode(lower), CompareMorton0());
 
     if (it == end)
       return false;
 
     const Cell found = *it->cell;
-    if ((found.lower >> max(coords.level, found.level)) ==
-        (coords.lower >> max(coords.level, found.level))
+    if ((found.lower >> max(level, found.level)) ==
+        (lower >> max(level, found.level))
         // &&
         // (found.level >= coords.level)
     ) {
@@ -169,8 +169,8 @@ struct AMR {
 
     if (it > begin) {
       const Cell found = *it[-1].cell;
-      if ((found.lower >> max(coords.level, found.level)) ==
-          (coords.lower >> max(coords.level, found.level))
+      if ((found.lower >> max(level, found.level)) ==
+          (lower >> max(level, found.level))
           // &&
           // (found.level >= coords.level)
       ) {
@@ -288,12 +288,11 @@ __global__ void extractTriangles(const Morton *const __restrict__ mortonArray,
   for (int iz = 0; iz < 2; iz++)
     for (int iy = 0; iy < 2; iy++)
       for (int ix = 0; ix < 2; ix++) {
-        struct CellCoords c;
-        c.level = cell.level;
-        c.lower.x = cell.lower.x + dx * ix * (1 << cell.level);
-        c.lower.y = cell.lower.y + dy * iy * (1 << cell.level);
-        c.lower.z = cell.lower.z + dz * iz * (1 << cell.level);
-        if (!amr.findActual(corner[iz][iy][ix], c))
+        vec3i lower;
+        lower.x = cell.lower.x + dx * ix * (1 << cell.level);
+        lower.y = cell.lower.y + dy * iy * (1 << cell.level);
+        lower.z = cell.lower.z + dz * iz * (1 << cell.level);
+        if (!amr.findActual(corner[iz][iy][ix], lower, cell.level))
           // corner does not exist - currentcell is on a boundary, and
           // this is not a dual cell
           return;
