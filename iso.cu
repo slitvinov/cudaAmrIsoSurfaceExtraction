@@ -194,11 +194,11 @@ struct AMR {
 __global__ void buildMortonArray(Morton *const __restrict__ mortonArray,
                                  const Cell *const __restrict__ cellArray,
                                  const int ncell) {
-  const size_t threadID = threadIdx.x + size_t(blockDim.x) * blockIdx.x;
-  if (threadID >= ncell)
+  const size_t tid = threadIdx.x + size_t(blockDim.x) * blockIdx.x;
+  if (tid >= ncell)
     return;
-  mortonArray[threadID].morton = mortonCode(cellArray[threadID].lower);
-  mortonArray[threadID].cell = &cellArray[threadID];
+  mortonArray[tid].morton = mortonCode(cellArray[tid].lower);
+  mortonArray[tid].cell = &cellArray[tid];
 }
 
 struct IsoExtractor {
@@ -276,12 +276,12 @@ __global__ void extractTriangles(const Morton *const __restrict__ mortonArray,
                                  int *p_numGeneratedTriangles) {
   AMR amr(mortonArray, cellArray, ncell, maxlevel);
 
-  const size_t threadID = threadIdx.x + size_t(blockDim.x) * blockIdx.x;
+  const size_t tid = threadIdx.x + size_t(blockDim.x) * blockIdx.x;
 
-  const int workID = threadID / 8;
+  const int workID = tid / 8;
   if (workID >= ncell)
     return;
-  const int directionID = threadID % 8;
+  const int directionID = tid % 8;
   const Cell currentCell = cellArray[workID];
 
   const int dz = (directionID & 4) ? 1 : -1;
