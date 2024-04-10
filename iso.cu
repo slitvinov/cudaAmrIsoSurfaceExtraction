@@ -148,17 +148,17 @@ struct CompareVertices {
 
 struct AMR {
   __device__ AMR(const Morton *const __restrict__ mortonArray,
-                 const vec3i origin, const Cell *const __restrict__ cellArray,
-                 const int ncell, const int maxlevel)
-      : mortonArray(mortonArray), origin(origin), cellArray(cellArray),
-        ncell(ncell), maxlevel(maxlevel) {}
+                 const Cell *const __restrict__ cellArray, const int ncell,
+                 const int maxlevel)
+      : mortonArray(mortonArray), cellArray(cellArray), ncell(ncell),
+        maxlevel(maxlevel) {}
 
   __device__ bool findActual(struct Cell &result, const CellCoords &coords) {
     const Morton *const __restrict__ begin = mortonArray;
     const Morton *const __restrict__ end = mortonArray + ncell;
 
     const Morton *it = thrust::system::detail::generic::scalar::lower_bound(
-        begin, end, mortonCode(coords.lower - origin), CompareMorton0());
+        begin, end, mortonCode(coords.lower), CompareMorton0());
 
     if (it == end)
       return false;
@@ -191,18 +191,16 @@ struct AMR {
   const Cell *const __restrict__ cellArray;
   const int ncell;
   const int maxlevel;
-  const vec3i origin;
   const Morton *const __restrict__ mortonArray;
 };
 
 __global__ void buildMortonArray(Morton *const __restrict__ mortonArray,
-                                 const vec3i origin,
                                  const Cell *const __restrict__ cellArray,
                                  const int ncell) {
   const size_t threadID = threadIdx.x + size_t(blockDim.x) * blockIdx.x;
   if (threadID >= ncell)
     return;
-  mortonArray[threadID].morton = mortonCode(cellArray[threadID].lower - origin);
+  mortonArray[threadID].morton = mortonCode(cellArray[threadID].lower);
   mortonArray[threadID].cell = &cellArray[threadID];
 }
 
@@ -272,13 +270,14 @@ struct IsoExtractor {
   }
 };
 
-__global__ void
-extractTriangles(const Morton *const __restrict__ mortonArray,
-                 const vec3i origin, const Cell *const __restrict__ cellArray,
-                 const int ncell, const int maxlevel, const float isoValue,
-                 TriangleVertex *__restrict__ outVertex,
-                 const int outVertexSize, int *p_numGeneratedTriangles) {
-  AMR amr(mortonArray, origin, cellArray, ncell, maxlevel);
+__global__ void extractTriangles(const Morton *const __restrict__ mortonArray,
+                                 const Cell *const __restrict__ cellArray,
+                                 const int ncell, const int maxlevel,
+                                 const float isoValue,
+                                 TriangleVertex *__restrict__ outVertex,
+                                 const int outVertexSize,
+                                 int *p_numGeneratedTriangles) {
+  AMR amr(mortonArray, cellArray, ncell, maxlevel);
 
   const size_t threadID = threadIdx.x + size_t(blockDim.x) * blockIdx.x;
 
@@ -344,12 +343,11 @@ createVertexArray(int *cnt, const TriangleVertex *const __restrict__ vertices,
   }
 }
 
-static vec3i origin;
 static int comp(const void *av, const void *bv) {
   struct Cell *a, *b;
   a = (struct Cell *)av;
   b = (struct Cell *)bv;
-  return mortonCode(a->lower - origin) - mortonCode(b->lower - origin);
+  return mortonCode(a->lower) - mortonCode(b->lower);
 }
 
 int main(int argc, char **argv) {
@@ -360,7 +358,7 @@ int main(int argc, char **argv) {
   int Verbose, maxlevel, level, Found, blockSize, numBlocks;
   long i, j, nvert, ntri, ncell, size, nlost;
   FILE *file, *cell_file, *scalar_file, *field_file;
-  int cell[4];
+  int cell[4], ox, oy, oz;
   char attr_path[FILENAME_MAX], xyz_path[FILENAME_MAX], tri_path[FILENAME_MAX],
       xdmf_path[FILENAME_MAX], *attr_base, *xyz_base, *tri_base, *cell_path,
       *scalar_path, *field_path, *output_path, *end;
@@ -430,9 +428,9 @@ positional:
     fprintf(stderr, "iso: error: malloc failed\n");
     exit(1);
   }
-  origin.x = INT_MAX;
-  origin.y = INT_MAX;
-  origin.z = INT_MAX;
+  ox = INT_MAX;
+  oy = INT_MAX;
+  oz = INT_MAX;
   maxlevel = 0;
   for (i = 0; i < ncell; i++) {
     if (fread(cell, sizeof(cell), 1, cell_file) != 1) {
@@ -452,13 +450,19 @@ positional:
       exit(1);
     }
     maxlevel = std::max(maxlevel, cells[i].level);
-    origin.x = std::min(origin.x, cells[i].lower.x);
-    origin.y = std::min(origin.y, cells[i].lower.y);
-    origin.z = std::min(origin.z, cells[i].lower.z);
+    ox = std::min(ox, cells[i].lower.x);
+    oy = std::min(oy, cells[i].lower.y);
+    oz = std::min(oz, cells[i].lower.z);
   }
+  for (i = 0; i < ncell; i++) {
+    cells[i].lower.x -= ox;
+    cells[i].lower.y -= oy;
+    cells[i].lower.z -= oz;
+  }
+
   if (Verbose)
     fprintf(stderr, "iso: ncell, maxlevel, origin: %ld %d [%d %d %d]\n", ncell,
-            maxlevel, origin.x, origin.y, origin.z);
+            maxlevel, ox, oy, oz);
   if (fclose(cell_file) != 0) {
     fprintf(stderr, "cylinder: error: fail to close '%s'\n", cell_path);
     exit(1);
@@ -478,7 +482,7 @@ positional:
   blockSize = 512;
   numBlocks = (numJobs + blockSize - 1) / blockSize;
   buildMortonArray<<<numBlocks, blockSize>>>(
-      thrust::raw_pointer_cast(d_mortonArray.data()), origin,
+      thrust::raw_pointer_cast(d_mortonArray.data()),
       thrust::raw_pointer_cast(d_cells.data()), d_cells.size());
   cudaDeviceSynchronize();
   thrust::sort(d_mortonArray.begin(), d_mortonArray.end(), CompareMorton1());
@@ -491,7 +495,7 @@ positional:
   blockSize = 512;
   numBlocks = (numJobs + blockSize - 1) / blockSize;
   extractTriangles<<<numBlocks, blockSize>>>(
-      thrust::raw_pointer_cast(d_mortonArray.data()), origin,
+      thrust::raw_pointer_cast(d_mortonArray.data()),
       thrust::raw_pointer_cast(d_cells.data()), d_cells.size(), maxlevel,
       isoValue, thrust::raw_pointer_cast(d_triangleVertices.data()),
       d_triangleVertices.size(),
@@ -504,7 +508,7 @@ positional:
   blockSize = 512;
   numBlocks = (numJobs + blockSize - 1) / blockSize;
   extractTriangles<<<numBlocks, blockSize>>>(
-      thrust::raw_pointer_cast(d_mortonArray.data()), origin,
+      thrust::raw_pointer_cast(d_mortonArray.data()),
       thrust::raw_pointer_cast(d_cells.data()), d_cells.size(), maxlevel,
       isoValue, thrust::raw_pointer_cast(d_triangleVertices.data()),
       d_triangleVertices.size(),
@@ -603,9 +607,7 @@ positional:
     for (;;) {
       result = (struct Cell *)bsearch(&needl, cells, ncell, sizeof(struct Cell),
                                       comp);
-      if (result != NULL && level == result->level && level > 0) {
-        if (Verbose)
-          fprintf(stderr, "level: %d\n", level);
+      if (result != NULL && level == result->level) {
         Found = 1;
         break;
       }
