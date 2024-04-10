@@ -267,7 +267,9 @@ createVertexArray(int *cnt, const TriangleVertex *const __restrict__ vertices,
   id = atomicAdd(cnt, 1);
   if (id >= size)
     return;
-  vert[id] = (float3 &)vertex.position;
+  vert[id].x = vertex.position.x;
+  vert[id].y = vertex.position.y;
+  vert[id].z = vertex.position.z;
   for (i = tid; i < nvert && vertices[i].position == vertex.position; i++) {
     j = vertices[i].id;
     k = j % 4;
