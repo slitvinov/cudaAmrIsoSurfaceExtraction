@@ -96,13 +96,6 @@ struct Cell : public CellCoords {
   float scalar, field;
 };
 
-__host__ __device__ bool operator==(const Cell &a, const Cell &b) {
-  return ((const CellCoords &)a == (const CellCoords &)b) &&
-         (a.scalar == b.scalar);
-}
-
-__device__ bool operator!=(const Cell &a, const Cell &b) { return !(a == b); }
-
 struct Morton {
   uint64_t morton;
   const Cell *cell;
