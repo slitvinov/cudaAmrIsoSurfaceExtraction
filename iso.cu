@@ -88,7 +88,10 @@ struct TriangleVertex {
 struct CompareVertices {
   __device__ bool operator()(const TriangleVertex &a,
                              const TriangleVertex &b) const {
-    return a.position < b.position;
+    return (a.position.x < b.position.x) ||
+           ((a.position.x == b.position.x) &&
+            ((a.position.y < b.position.y) ||
+             (a.position.y == b.position.y) && (a.position.z < b.position.z)));
   }
 };
 
