@@ -242,7 +242,7 @@ static int comp(const void *av, const void *bv) {
   struct Cell *a, *b;
   a = (struct Cell *)av;
   b = (struct Cell *)bv;
-  return a->morton - b->morton;
+  return b->morton - a->morton;
 }
 
 int main(int argc, char **argv) {
