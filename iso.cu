@@ -490,12 +490,12 @@ positional:
     fprintf(stderr, "iso: fail to close '%s'\n", tri_path);
     exit(1);
   }
-  for (i = 0; i < nvert; i++)
-    attr[i] = vert[i].field;
   if ((attr = (float *)malloc(nvert * sizeof *attr)) == NULL) {
     fprintf(stderr, "iso: error: malloc failed\n");
     exit(1);
   }
+  for (i = 0; i < nvert; i++)
+    attr[i] = vert[i].field;
   if (Verbose)
     fprintf(stderr, "iso: nlost/nvert: %ld/%ld\n", nlost, nvert);
   if ((file = fopen(attr_path, "w")) == NULL) {
