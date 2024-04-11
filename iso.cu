@@ -24,14 +24,9 @@ __device__ __host__ long leftShift3(long x) {
   return x;
 }
 
-__device__ __host__ long mortonCode0(int x, int y, int z) {
+__device__ __host__ long mortonCode(int x, int y, int z) {
   return (leftShift3(uint32_t(z)) << 2) | (leftShift3(uint32_t(y)) << 1) |
          (leftShift3(uint32_t(x)) << 0);
-}
-
-__device__ __host__ long mortonCode(const vec3i v) {
-  return (leftShift3(uint32_t(v.z)) << 2) | (leftShift3(uint32_t(v.y)) << 1) |
-         (leftShift3(uint32_t(v.x)) << 0);
 }
 
 __host__ __device__ bool operator==(const vec3i &a, const vec3i &b) {
@@ -114,7 +109,7 @@ struct AMR {
     const Cell *const __restrict__ end = cellArray + ncell;
 
     const Cell *it = thrust::system::detail::generic::scalar::lower_bound(
-        begin, end, mortonCode(lower), CompareMorton0());
+        begin, end, mortonCode(lower.x, lower.y, lower.z), CompareMorton0());
 
     if (it == end)
       return false;
@@ -264,7 +259,8 @@ static int comp(const void *av, const void *bv) {
   struct Cell *a, *b;
   a = (struct Cell *)av;
   b = (struct Cell *)bv;
-  return mortonCode(a->lower) - mortonCode(b->lower);
+  return mortonCode(a->lower.x, a->lower.y, a->lower.z) -
+         mortonCode(b->lower.x, b->lower.y, b->lower.z);
 }
 
 int main(int argc, char **argv) {
@@ -375,7 +371,7 @@ positional:
     cells[i].lower.y -= oy;
     cells[i].lower.z -= oz;
     cells[i].morton =
-        mortonCode0(cells[i].lower.x, cells[i].lower.y, cells[i].lower.z);
+        mortonCode(cells[i].lower.x, cells[i].lower.y, cells[i].lower.z);
   }
 
   if (Verbose)
