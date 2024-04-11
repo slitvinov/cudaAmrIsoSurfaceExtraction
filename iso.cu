@@ -24,6 +24,11 @@ __device__ __host__ long leftShift3(long x) {
   return x;
 }
 
+__device__ __host__ long mortonCode0(int x, int y, int z) {
+  return (leftShift3(uint32_t(z)) << 2) | (leftShift3(uint32_t(y)) << 1) |
+         (leftShift3(uint32_t(x)) << 0);
+}
+
 __device__ __host__ long mortonCode(const vec3i v) {
   return (leftShift3(uint32_t(v.z)) << 2) | (leftShift3(uint32_t(v.y)) << 1) |
          (leftShift3(uint32_t(v.x)) << 0);
@@ -70,22 +75,18 @@ struct Cell {
   }
   vec3i lower;
   int level;
+  uint64_t morton;
   float scalar, field;
 };
 
-struct Morton {
-  uint64_t morton;
-  const Cell *cell;
-};
-
 struct CompareMorton0 {
-  __device__ bool operator()(const Morton &a, const uint64_t b) {
+  __device__ bool operator()(const Cell &a, const uint64_t b) {
     return a.morton < b;
   }
 };
 
 struct CompareMorton1 {
-  __device__ bool operator()(const Morton &a, const Morton &b) {
+  __device__ bool operator()(const Cell &a, const Cell &b) {
     return a.morton < b.morton;
   }
 };
@@ -103,24 +104,22 @@ struct CompareVertices {
 };
 
 struct AMR {
-  __device__ AMR(const Morton *const __restrict__ mortonArray,
-                 const Cell *const __restrict__ cellArray, const int ncell,
+  __device__ AMR(const Cell *const __restrict__ cellArray, const int ncell,
                  const int maxlevel)
-      : mortonArray(mortonArray), cellArray(cellArray), ncell(ncell),
-        maxlevel(maxlevel) {}
+      : cellArray(cellArray), ncell(ncell), maxlevel(maxlevel) {}
 
   __device__ bool findActual(struct Cell &result, const vec3i lower,
                              int level) {
-    const Morton *const __restrict__ begin = mortonArray;
-    const Morton *const __restrict__ end = mortonArray + ncell;
+    const Cell *const __restrict__ begin = cellArray;
+    const Cell *const __restrict__ end = cellArray + ncell;
 
-    const Morton *it = thrust::system::detail::generic::scalar::lower_bound(
+    const Cell *it = thrust::system::detail::generic::scalar::lower_bound(
         begin, end, mortonCode(lower), CompareMorton0());
 
     if (it == end)
       return false;
 
-    const Cell found = *it->cell;
+    const Cell found = *it;
     if ((found.lower >> max(level, found.level)) ==
         (lower >> max(level, found.level))
         // &&
@@ -131,7 +130,7 @@ struct AMR {
     }
 
     if (it > begin) {
-      const Cell found = *it[-1].cell;
+      const Cell found = it[-1];
       if ((found.lower >> max(level, found.level)) ==
           (lower >> max(level, found.level))
           // &&
@@ -148,21 +147,9 @@ struct AMR {
   const Cell *const __restrict__ cellArray;
   const int ncell;
   const int maxlevel;
-  const Morton *const __restrict__ mortonArray;
 };
 
-__global__ void buildMortonArray(Morton *const __restrict__ mortonArray,
-                                 const Cell *const __restrict__ cellArray,
-                                 const int ncell) {
-  const size_t tid = threadIdx.x + size_t(blockDim.x) * blockIdx.x;
-  if (tid >= ncell)
-    return;
-  mortonArray[tid].morton = mortonCode(cellArray[tid].lower);
-  mortonArray[tid].cell = &cellArray[tid];
-}
-
-__global__ void extractTriangles(const Morton *const __restrict__ mortonArray,
-                                 const Cell *const __restrict__ cellArray,
+__global__ void extractTriangles(const Cell *const __restrict__ cellArray,
                                  int ncell, int maxlevel, float iso,
                                  TriangleVertex *__restrict__ out, int size,
                                  int *cnt) {
@@ -173,7 +160,7 @@ __global__ void extractTriangles(const Morton *const __restrict__ mortonArray,
   float4 v0, v1, triVertex[3];
   vec3i lower;
   Cell corner[2][2][2], cell;
-  AMR amr(mortonArray, cellArray, ncell, maxlevel);
+  AMR amr(cellArray, ncell, maxlevel);
   tid = threadIdx.x + size_t(blockDim.x) * blockIdx.x;
   wid = tid / 8;
   if (wid >= ncell)
@@ -387,6 +374,8 @@ positional:
     cells[i].lower.x -= ox;
     cells[i].lower.y -= oy;
     cells[i].lower.z -= oz;
+    cells[i].morton =
+        mortonCode0(cells[i].lower.x, cells[i].lower.y, cells[i].lower.z);
   }
 
   if (Verbose)
@@ -406,17 +395,11 @@ positional:
   }
   qsort(cells, ncell, sizeof *cells, comp);
   thrust::device_vector<Cell> d_cells{cells, cells + ncell};
-  thrust::device_vector<Morton> d_mortonArray(ncell);
   numJobs = ncell;
   blockSize = 512;
   numBlocks = (numJobs + blockSize - 1) / blockSize;
-  buildMortonArray<<<numBlocks, blockSize>>>(
-      thrust::raw_pointer_cast(d_mortonArray.data()),
-      thrust::raw_pointer_cast(d_cells.data()), d_cells.size());
   cudaDeviceSynchronize();
-  thrust::sort(d_mortonArray.begin(), d_mortonArray.end(), CompareMorton1());
 
-  cudaDeviceSynchronize();
   thrust::device_vector<int> d_atomicCounter(1);
   thrust::device_vector<TriangleVertex> d_triangleVertices(0);
   d_atomicCounter[0] = 0;
@@ -424,7 +407,6 @@ positional:
   blockSize = 512;
   numBlocks = (numJobs + blockSize - 1) / blockSize;
   extractTriangles<<<numBlocks, blockSize>>>(
-      thrust::raw_pointer_cast(d_mortonArray.data()),
       thrust::raw_pointer_cast(d_cells.data()), d_cells.size(), maxlevel, iso,
       thrust::raw_pointer_cast(d_triangleVertices.data()),
       d_triangleVertices.size(),
@@ -437,7 +419,6 @@ positional:
   blockSize = 512;
   numBlocks = (numJobs + blockSize - 1) / blockSize;
   extractTriangles<<<numBlocks, blockSize>>>(
-      thrust::raw_pointer_cast(d_mortonArray.data()),
       thrust::raw_pointer_cast(d_cells.data()), d_cells.size(), maxlevel, iso,
       thrust::raw_pointer_cast(d_triangleVertices.data()),
       d_triangleVertices.size(),
