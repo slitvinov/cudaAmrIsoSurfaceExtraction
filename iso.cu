@@ -46,7 +46,7 @@ struct TriangleVertex {
 __device__ bool operator==(const vec3f &a, const vec3f &b) {
   return a.x == b.x && a.y == b.y && a.z == b.z;
 }
-__device__ bool operator<(const vec3i &a, const vec3i &b) {
+__device__ bool operator<(const vec3f &a, const vec3f &b) {
   return (a.x < b.x) ||
          ((a.x == b.x) && ((a.y < b.y) || (a.y == b.y) && (a.z < b.z)));
 }
@@ -83,10 +83,7 @@ struct CompareMorton1 {
 struct CompareVertices {
   __device__ bool operator()(const TriangleVertex &a,
                              const TriangleVertex &b) const {
-    return (a.position.x < b.position.x) ||
-           ((a.position.x == b.position.x) &&
-            ((a.position.y < b.position.y) ||
-             (a.position.y == b.position.y) && (a.position.z < b.position.z)));
+    return a.position < b.position;
   }
 };
 
