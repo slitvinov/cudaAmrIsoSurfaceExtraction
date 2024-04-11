@@ -251,7 +251,7 @@ int main(int argc, char **argv) {
   int3 *tri;
   size_t numJobs;
   int Verbose, maxlevel, blockSize, numBlocks;
-  long i, j, nvert, ntri, ncell, size, nlost;
+  long i, j, nvert, ntri, ncell, size;
   FILE *file, *cell_file, *scalar_file, *field_file;
   int cell[4], ox, oy, oz;
   char attr_path[FILENAME_MAX], xyz_path[FILENAME_MAX], tri_path[FILENAME_MAX],
@@ -429,6 +429,8 @@ positional:
       d_triangleVertices.size(), thrust::raw_pointer_cast(d_vert.data()), nvert,
       thrust::raw_pointer_cast(d_tri.data()));
   cudaDeviceSynchronize();
+  if (Verbose)
+    fprintf(stderr, "iso: nvert: %ld\n", nvert);
   assert(d_tri.size() == ntri);
   assert(d_vert.size() == nvert);
   if ((vert = (TriangleVertex *)malloc(nvert * sizeof *vert)) == NULL) {
@@ -495,8 +497,6 @@ positional:
   }
   for (i = 0; i < nvert; i++)
     attr[i] = vert[i].field;
-  if (Verbose)
-    fprintf(stderr, "iso: nlost/nvert: %ld/%ld\n", nlost, nvert);
   if ((file = fopen(attr_path, "w")) == NULL) {
     fprintf(stderr, "iso: error: fail to open '%s'\n", attr_path);
     exit(1);
