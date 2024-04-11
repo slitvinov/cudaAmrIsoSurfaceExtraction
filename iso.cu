@@ -29,17 +29,11 @@ __device__ __host__ long mortonCode(int x, int y, int z) {
          (leftShift3(uint32_t(x)) << 0);
 }
 
-__host__ __device__ bool operator==(const vec3i &a, const vec3i &b) {
-  return a.x == b.x && a.y == b.y && a.z == b.z;
-}
-
 struct vec3f {
   __device__ vec3f() {}
   __device__ vec3f(const float x, const float y, const float z)
       : x(x), y(y), z(z) {}
-  __host__ __device__ vec3f(const float f) : x(f), y(f), z(f) {}
-  __host__ __device__ vec3f(const vec3i o) : x(o.x), y(o.y), z(o.z) {}
-
+  __device__ vec3f(const vec3i o) : x(o.x), y(o.y), z(o.z) {}
   float x, y, z;
 };
 
@@ -107,7 +101,8 @@ struct AMR {
     const Cell *const __restrict__ begin = cellArray;
     const Cell *const __restrict__ end = cellArray + ncell;
     const Cell *it = thrust::system::detail::generic::scalar::lower_bound(
-        cellArray, cellArray + ncell, mortonCode(lower.x, lower.y, lower.z), CompareMorton0());
+        cellArray, cellArray + ncell, mortonCode(lower.x, lower.y, lower.z),
+        CompareMorton0());
     if (it == end)
       return false;
     const Cell found = *it;
