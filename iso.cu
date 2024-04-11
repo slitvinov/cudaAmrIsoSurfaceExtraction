@@ -50,30 +50,23 @@ __device__ bool operator<(const vec3i &a, const vec3i &b) {
   return (a.x < b.x) ||
          ((a.x == b.x) && ((a.y < b.y) || (a.y == b.y) && (a.z < b.z)));
 }
-__device__ float4 operator+(const float4 &a, const float4 &b) {
-  return {a.x + b.x, a.y + b.y, a.z + b.z, a.w + b.w};
-}
-__device__ float4 operator*(const float b, const float4 &a) {
-  return {a.x * b, a.y * b, a.z * b, a.w * b};
-}
-__device__ bool operator==(const float4 &a, const float4 &b) {
-  return a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w;
-}
+
 struct Cell {
-  __device__ TriangleVertex asDualVertex() const {
-    TriangleVertex v;
-    v.position.x = lower.x + 0.5 * (1 << level);
-    v.position.y = lower.y + 0.5 * (1 << level);
-    v.position.z = lower.z + 0.5 * (1 << level);
-    v.scalar = scalar;
-    v.field = field;
-    return v;
-  }
   vec3i lower;
   int level;
   uint64_t morton;
   float scalar, field;
 };
+
+__device__ struct TriangleVertex dual(struct Cell c) {
+  struct TriangleVertex v;
+  v.position.x = c.lower.x + 0.5 * (1 << c.level);
+  v.position.y = c.lower.y + 0.5 * (1 << c.level);
+  v.position.z = c.lower.z + 0.5 * (1 << c.level);
+  v.scalar = c.scalar;
+  v.field = c.field;
+  return v;
+}
 
 struct CompareMorton0 {
   __device__ bool operator()(const Cell &a, const uint64_t b) {
@@ -170,14 +163,14 @@ __global__ void extractTriangles(const Cell *const __restrict__ cellArray,
   x = dx == -1;
   y = dy == -1;
   z = dz == -1;
-  TriangleVertex vertex[8] = {corner[0 + z][0 + y][0 + x].asDualVertex(),
-                              corner[0 + z][0 + y][1 - x].asDualVertex(),
-                              corner[0 + z][1 - y][1 - x].asDualVertex(),
-                              corner[0 + z][1 - y][0 + x].asDualVertex(),
-                              corner[1 - z][0 + y][0 + x].asDualVertex(),
-                              corner[1 - z][0 + y][1 - x].asDualVertex(),
-                              corner[1 - z][1 - y][1 - x].asDualVertex(),
-                              corner[1 - z][1 - y][0 + x].asDualVertex()};
+TriangleVertex vertex[8] = {dual(corner[0 + z][0 + y][0 + x]),
+			    dual(corner[0 + z][0 + y][1 - x]),
+			    dual(corner[0 + z][1 - y][1 - x]),
+			    dual(corner[0 + z][1 - y][0 + x]),
+			    dual(corner[1 - z][0 + y][0 + x]),
+			    dual(corner[1 - z][0 + y][1 - x]),
+			    dual(corner[1 - z][1 - y][1 - x]),
+			    dual(corner[1 - z][1 - y][0 + x])};
   index = 0;
   for (i = 0; i < 8; i++)
     if (vertex[i].scalar > iso)
