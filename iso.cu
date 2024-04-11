@@ -163,14 +163,11 @@ __global__ void extractTriangles(const Cell *const __restrict__ cellArray,
   x = dx == -1;
   y = dy == -1;
   z = dz == -1;
-TriangleVertex vertex[8] = {dual(corner[0 + z][0 + y][0 + x]),
-			    dual(corner[0 + z][0 + y][1 - x]),
-			    dual(corner[0 + z][1 - y][1 - x]),
-			    dual(corner[0 + z][1 - y][0 + x]),
-			    dual(corner[1 - z][0 + y][0 + x]),
-			    dual(corner[1 - z][0 + y][1 - x]),
-			    dual(corner[1 - z][1 - y][1 - x]),
-			    dual(corner[1 - z][1 - y][0 + x])};
+  TriangleVertex vertex[8] = {
+      dual(corner[0 + z][0 + y][0 + x]), dual(corner[0 + z][0 + y][1 - x]),
+      dual(corner[0 + z][1 - y][1 - x]), dual(corner[0 + z][1 - y][0 + x]),
+      dual(corner[1 - z][0 + y][0 + x]), dual(corner[1 - z][0 + y][1 - x]),
+      dual(corner[1 - z][1 - y][1 - x]), dual(corner[1 - z][1 - y][0 + x])};
   index = 0;
   for (i = 0; i < 8; i++)
     if (vertex[i].scalar > iso)
@@ -214,7 +211,7 @@ TriangleVertex vertex[8] = {dual(corner[0 + z][0 + y][0 + x]),
 
 __global__ void
 createVertexArray(int *cnt, const TriangleVertex *const __restrict__ vertices,
-                  int nvert, float3 *vert, int size, int3 *index) {
+                  int nvert, TriangleVertex *vert, int size, int3 *index) {
   int i, j, k, l, id, tid, *tri;
   TriangleVertex vertex;
   tid = blockIdx.x * blockDim.x + threadIdx.x;
@@ -226,9 +223,12 @@ createVertexArray(int *cnt, const TriangleVertex *const __restrict__ vertices,
   id = atomicAdd(cnt, 1);
   if (id >= size)
     return;
-  vert[id].x = vertex.position.x;
-  vert[id].y = vertex.position.y;
-  vert[id].z = vertex.position.z;
+  vert[id].position.x = vertex.position.x;
+  vert[id].position.y = vertex.position.y;
+  vert[id].position.z = vertex.position.z;
+  vert[id].scalar = vertex.scalar;
+  vert[id].field = vertex.field;
+
   for (i = tid; i < nvert && vertices[i].position == vertex.position; i++) {
     j = vertices[i].id;
     k = j % 4;
@@ -247,18 +247,18 @@ static int comp(const void *av, const void *bv) {
 }
 
 int main(int argc, char **argv) {
-  float iso, *attr;
-  float3 *vert;
+  float iso, *attr, *xyz;
+  TriangleVertex *vert;
   int3 *tri;
   size_t numJobs;
-  int Verbose, maxlevel, level, Found, blockSize, numBlocks;
+  int Verbose, maxlevel, blockSize, numBlocks;
   long i, j, nvert, ntri, ncell, size, nlost;
   FILE *file, *cell_file, *scalar_file, *field_file;
   int cell[4], ox, oy, oz;
   char attr_path[FILENAME_MAX], xyz_path[FILENAME_MAX], tri_path[FILENAME_MAX],
       xdmf_path[FILENAME_MAX], *attr_base, *xyz_base, *tri_base, *cell_path,
       *scalar_path, *field_path, *output_path, *end;
-  struct Cell needl, *cells, *result;
+  struct Cell *cells;
 
   Verbose = 0;
   while (*++argv != NULL && argv[0][0] == '-')
@@ -406,7 +406,7 @@ positional:
   thrust::sort(d_triangleVertices.begin(), d_triangleVertices.end(),
                CompareVertices());
   cudaDeviceSynchronize();
-  thrust::device_vector<float3> d_vert(0);
+  thrust::device_vector<TriangleVertex> d_vert(0);
   thrust::device_vector<int3> d_tri(ntri);
   d_atomicCounter[0] = 0;
   numJobs = 3 * ntri;
@@ -432,7 +432,11 @@ positional:
   cudaDeviceSynchronize();
   assert(d_tri.size() == ntri);
   assert(d_vert.size() == nvert);
-  if ((vert = (float3 *)malloc(nvert * sizeof *vert)) == NULL) {
+  if ((vert = (TriangleVertex *)malloc(nvert * sizeof *vert)) == NULL) {
+    fprintf(stderr, "iso: error: malloc failed\n");
+    exit(1);
+  }
+  if ((xyz = (float *)malloc(3 * nvert * sizeof *xyz)) == NULL) {
     fprintf(stderr, "iso: error: malloc failed\n");
     exit(1);
   }
@@ -461,7 +465,12 @@ positional:
     fprintf(stderr, "iso: error: fail to open '%s'\n", xyz_path);
     exit(1);
   }
-  if (fwrite(vert, nvert * sizeof *vert, 1, file) != 1) {
+  for (i = 0; i < nvert; i++) {
+    xyz[3 * i] = vert[i].position.x;
+    xyz[3 * i + 1] = vert[i].position.y;
+    xyz[3 * i + 2] = vert[i].position.z;
+  }
+  if (fwrite(xyz, 3 * nvert * sizeof *xyz, 1, file) != 1) {
     fprintf(stderr, "iso: error: fail to write '%s'\n", xyz_path);
     exit(1);
   }
@@ -481,42 +490,14 @@ positional:
     fprintf(stderr, "iso: fail to close '%s'\n", tri_path);
     exit(1);
   }
-
+  for (i = 0; i < nvert; i++)
+    attr[i] = vert[i].field;
   if ((attr = (float *)malloc(nvert * sizeof *attr)) == NULL) {
     fprintf(stderr, "iso: error: malloc failed\n");
     exit(1);
   }
-  nlost = 0;
-  for (j = 0; j < nvert; j++) {
-    Found = 0;
-    needl.lower.x = vert[j].x;
-    needl.lower.y = vert[j].y;
-    needl.lower.z = vert[j].z;
-    level = 0;
-    for (;;) {
-      result = (struct Cell *)bsearch(&needl, cells, ncell, sizeof(struct Cell),
-                                      comp);
-      if (result != NULL && level == result->level) {
-        Found = 1;
-        break;
-      }
-      if (level == maxlevel)
-        break;
-      level++;
-      needl.lower.x &= (~0 << level);
-      needl.lower.y &= (~0 << level);
-      needl.lower.z &= (~0 << level);
-    }
-    if (Found) {
-      attr[j] = result->field;
-    } else {
-      nlost++;
-      attr[j] = 0;
-    }
-  }
   if (Verbose)
     fprintf(stderr, "iso: nlost/nvert: %ld/%ld\n", nlost, nvert);
-
   if ((file = fopen(attr_path, "w")) == NULL) {
     fprintf(stderr, "iso: error: fail to open '%s'\n", attr_path);
     exit(1);
@@ -529,6 +510,7 @@ positional:
     fprintf(stderr, "iso: fail to close '%s'\n", attr_path);
     exit(1);
   }
+  free(xyz);
   free(vert);
   free(tri);
   free(cells);
