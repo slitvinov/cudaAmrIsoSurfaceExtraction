@@ -99,27 +99,20 @@ struct CompareVertices {
 };
 
 struct AMR {
-  __device__ AMR(const Cell *const __restrict__ cellArray, const int ncell,
-                 const int maxlevel)
-      : cellArray(cellArray), ncell(ncell), maxlevel(maxlevel) {}
+  __device__ AMR(const Cell *const __restrict__ cellArray, const int ncell)
+      : cellArray(cellArray), ncell(ncell) {}
 
   __device__ bool findActual(struct Cell &result, const vec3i lower,
                              int level) {
     const Cell *const __restrict__ begin = cellArray;
     const Cell *const __restrict__ end = cellArray + ncell;
-
     const Cell *it = thrust::system::detail::generic::scalar::lower_bound(
-        begin, end, mortonCode(lower.x, lower.y, lower.z), CompareMorton0());
-
+        cellArray, cellArray + ncell, mortonCode(lower.x, lower.y, lower.z), CompareMorton0());
     if (it == end)
       return false;
-
     const Cell found = *it;
     if ((found.lower >> max(level, found.level)) ==
-        (lower >> max(level, found.level))
-        // &&
-        // (found.level >= coords.level)
-    ) {
+        (lower >> max(level, found.level))) {
       result = found;
       return true;
     }
@@ -127,21 +120,16 @@ struct AMR {
     if (it > begin) {
       const Cell found = it[-1];
       if ((found.lower >> max(level, found.level)) ==
-          (lower >> max(level, found.level))
-          // &&
-          // (found.level >= coords.level)
-      ) {
+          (lower >> max(level, found.level))) {
         result = found;
         return true;
       }
     }
-
     return false;
   };
 
   const Cell *const __restrict__ cellArray;
   const int ncell;
-  const int maxlevel;
 };
 
 __global__ void extractTriangles(const Cell *const __restrict__ cellArray,
@@ -155,7 +143,7 @@ __global__ void extractTriangles(const Cell *const __restrict__ cellArray,
   float4 v0, v1, triVertex[3];
   vec3i lower;
   Cell corner[2][2][2], cell;
-  AMR amr(cellArray, ncell, maxlevel);
+  AMR amr(cellArray, ncell);
   tid = threadIdx.x + size_t(blockDim.x) * blockIdx.x;
   wid = tid / 8;
   if (wid >= ncell)
