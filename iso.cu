@@ -40,7 +40,7 @@ struct vec3f {
 __device__ bool operator==(const vec3f &a, const vec3f &b) {
   return a.x == b.x && a.y == b.y && a.z == b.z;
 }
-__host__ __device__ bool operator<(const vec3f &a, const vec3f &b) {
+__device__ bool operator<(const vec3i &a, const vec3i &b) {
   return (a.x < b.x) ||
          ((a.x == b.x) && ((a.y < b.y) || (a.y == b.y) && (a.z < b.z)));
 }
