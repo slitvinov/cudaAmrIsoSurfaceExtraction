@@ -37,6 +37,12 @@ struct vec3f {
   float x, y, z;
 };
 
+struct TriangleVertex {
+  vec3f position;
+  float scalar, field;
+  uint32_t id;
+};
+
 __device__ bool operator==(const vec3f &a, const vec3f &b) {
   return a.x == b.x && a.y == b.y && a.z == b.z;
 }
@@ -53,14 +59,15 @@ __device__ float4 operator*(const float b, const float4 &a) {
 __device__ bool operator==(const float4 &a, const float4 &b) {
   return a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w;
 }
-
 struct Cell {
-  __device__ float4 asDualVertex() const {
-    float x, y, z;
-    x = lower.x + 0.5 * (1 << level);
-    y = lower.y + 0.5 * (1 << level);
-    z = lower.z + 0.5 * (1 << level);
-    return make_float4(x, y, z, scalar);
+  __device__ TriangleVertex asDualVertex() const {
+    TriangleVertex v;
+    v.position.x = lower.x + 0.5 * (1 << level);
+    v.position.y = lower.y + 0.5 * (1 << level);
+    v.position.z = lower.z + 0.5 * (1 << level);
+    v.scalar = scalar;
+    v.field = field;
+    return v;
   }
   vec3i lower;
   int level;
@@ -78,11 +85,6 @@ struct CompareMorton1 {
   __device__ bool operator()(const Cell &a, const Cell &b) {
     return a.morton < b.morton;
   }
-};
-
-struct TriangleVertex {
-  vec3f position;
-  uint32_t id;
 };
 
 struct CompareVertices {
@@ -138,7 +140,7 @@ __global__ void extractTriangles(const Cell *const __restrict__ cellArray,
   int x, y, z, id, index, i, j, k, ii, wid, did, dx, dy, dz, ix, iy, iz;
   int8_t *edge, *vert;
   float t;
-  float4 v0, v1, triVertex[3];
+  TriangleVertex v0, v1, triVertex[3];
   vec3i lower;
   Cell corner[2][2][2], cell;
   AMR amr(cellArray, ncell);
@@ -168,17 +170,17 @@ __global__ void extractTriangles(const Cell *const __restrict__ cellArray,
   x = dx == -1;
   y = dy == -1;
   z = dz == -1;
-  float4 vertex[8] = {corner[0 + z][0 + y][0 + x].asDualVertex(),
-                      corner[0 + z][0 + y][1 - x].asDualVertex(),
-                      corner[0 + z][1 - y][1 - x].asDualVertex(),
-                      corner[0 + z][1 - y][0 + x].asDualVertex(),
-                      corner[1 - z][0 + y][0 + x].asDualVertex(),
-                      corner[1 - z][0 + y][1 - x].asDualVertex(),
-                      corner[1 - z][1 - y][1 - x].asDualVertex(),
-                      corner[1 - z][1 - y][0 + x].asDualVertex()};
+  TriangleVertex vertex[8] = {corner[0 + z][0 + y][0 + x].asDualVertex(),
+                              corner[0 + z][0 + y][1 - x].asDualVertex(),
+                              corner[0 + z][1 - y][1 - x].asDualVertex(),
+                              corner[0 + z][1 - y][0 + x].asDualVertex(),
+                              corner[1 - z][0 + y][0 + x].asDualVertex(),
+                              corner[1 - z][0 + y][1 - x].asDualVertex(),
+                              corner[1 - z][1 - y][1 - x].asDualVertex(),
+                              corner[1 - z][1 - y][0 + x].asDualVertex()};
   index = 0;
   for (i = 0; i < 8; i++)
-    if (vertex[i].w > iso)
+    if (vertex[i].scalar > iso)
       index += (1 << i);
   if (index == 0 || index == 0xff)
     return;
@@ -188,23 +190,30 @@ __global__ void extractTriangles(const Cell *const __restrict__ cellArray,
       vert = vtkMarchingCubes_edges[edge[ii]];
       v0 = vertex[vert[0]];
       v1 = vertex[vert[1]];
-      t = (iso - v0.w) / float(v1.w - v0.w);
-      triVertex[ii] = (1.f - t) * v0 + t * v1;
+      t = (iso - v0.scalar) / float(v1.scalar - v0.scalar);
+
+      triVertex[ii].position.x = (1.0 - t) * v0.position.x + t * v1.position.x;
+      triVertex[ii].position.y = (1.0 - t) * v0.position.y + t * v1.position.y;
+      triVertex[ii].position.z = (1.0 - t) * v0.position.z + t * v1.position.z;
+      triVertex[ii].scalar = (1.0 - t) * v0.scalar + t * v1.scalar;
+      triVertex[ii].field = (1.0 - t) * v0.field + t * v1.field;
     }
-    if (triVertex[1] == triVertex[0])
+    if (triVertex[1].position == triVertex[0].position)
       continue;
-    if (triVertex[2] == triVertex[0])
+    if (triVertex[2].position == triVertex[0].position)
       continue;
-    if (triVertex[1] == triVertex[2])
+    if (triVertex[1].position == triVertex[2].position)
       continue;
     id = atomicAdd(cnt, 1);
     if (id >= 3 * size)
       continue;
     for (j = 0; j < 3; j++) {
       k = 3 * id + j;
-      out[k].position.x = triVertex[j].x;
-      out[k].position.y = triVertex[j].y;
-      out[k].position.z = triVertex[j].z;
+      out[k].position.x = triVertex[j].position.x;
+      out[k].position.y = triVertex[j].position.y;
+      out[k].position.z = triVertex[j].position.z;
+      out[k].scalar = triVertex[j].scalar;
+      out[k].field = triVertex[j].field;
       out[k].id = 4 * id + j;
     }
   }
