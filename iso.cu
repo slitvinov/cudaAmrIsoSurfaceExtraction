@@ -160,16 +160,11 @@ __global__ void extractTriangles(const Cell *const __restrict__ cellArray,
         lower.y = cell.lower.y + dy * iy * (1 << cell.level);
         lower.z = cell.lower.z + dz * iz * (1 << cell.level);
         if (!amr.findActual(corner[iz][iy][ix], lower, cell.level))
-          // corner does not exist - currentcell is on a boundary, and
-          // this is not a dual cell
           return;
         if (corner[iz][iy][ix].level < cell.level)
-          // somebody else will generate this same cell from a finer
-          // level...
           return;
         if (corner[iz][iy][ix].level == cell.level &&
             corner[iz][iy][ix].lower < cell.lower)
-          // this other cell will generate this dual cell...
           return;
       }
   x = dx == -1;
