@@ -242,8 +242,7 @@ static int comp(const void *av, const void *bv) {
   struct Cell *a, *b;
   a = (struct Cell *)av;
   b = (struct Cell *)bv;
-  return mortonCode(a->lower.x, a->lower.y, a->lower.z) -
-         mortonCode(b->lower.x, b->lower.y, b->lower.z);
+  return a->morton - b->morton;
 }
 
 int main(int argc, char **argv) {
