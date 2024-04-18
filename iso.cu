@@ -370,11 +370,16 @@ positional:
   }
   qsort(cells, ncell, sizeof *cells, comp);
   thrust::device_vector<Cell> d_cells{cells, cells + ncell};
-  thrust::sort(d_cells.begin(), d_cells.end(), CompareMorton1());
+  try {
+    thrust::sort(d_cells.begin(), d_cells.end(), CompareMorton1());
+    cudaDeviceSynchronize();
+  } catch (thrust::system::system_error) {
+    fprintf(stderr, "iso: thrust::sort failed\n");
+    exit(1);
+  }
   numJobs = ncell;
   blockSize = 512;
   numBlocks = (numJobs + blockSize - 1) / blockSize;
-  cudaDeviceSynchronize();
 
   thrust::device_vector<int> d_atomicCounter(1);
   thrust::device_vector<TriangleVertex> d_triangleVertices(0);
