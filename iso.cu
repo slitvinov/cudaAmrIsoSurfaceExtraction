@@ -405,9 +405,14 @@ positional:
       d_triangleVertices.size(),
       thrust::raw_pointer_cast(d_atomicCounter.data()));
   cudaDeviceSynchronize();
-  thrust::sort(d_triangleVertices.begin(), d_triangleVertices.end(),
+  try {
+    thrust::sort(d_triangleVertices.begin(), d_triangleVertices.end(),
                CompareVertices());
-  cudaDeviceSynchronize();
+    cudaDeviceSynchronize();
+  } catch (thrust::system::system_error) {
+    fprintf(stderr, "iso: thrust::sort failed\n");
+    exit(1);
+  }
   thrust::device_vector<TriangleVertex> d_vert(0);
   thrust::device_vector<int3> d_tri(ntri);
   d_atomicCounter[0] = 0;
