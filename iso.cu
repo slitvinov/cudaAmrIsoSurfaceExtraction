@@ -404,7 +404,7 @@ positional:
   createVertexArray<<<numBlocks, blockSize>>>(
       thrust::raw_pointer_cast(d_atomicCounter.data()),
       thrust::raw_pointer_cast(d_triangleVertices.data()),
-      d_triangleVertices.size(), NULL, 0,
+      3 * ntri, NULL, 0,
       thrust::raw_pointer_cast(d_tri.data()));
   cudaDeviceSynchronize();
   nvert = d_atomicCounter[0];
@@ -416,7 +416,7 @@ positional:
   createVertexArray<<<numBlocks, blockSize>>>(
       thrust::raw_pointer_cast(d_atomicCounter.data()),
       thrust::raw_pointer_cast(d_triangleVertices.data()),
-      d_triangleVertices.size(), thrust::raw_pointer_cast(d_vert.data()), nvert,
+      3 * ntri, thrust::raw_pointer_cast(d_vert.data()), nvert,
       thrust::raw_pointer_cast(d_tri.data()));
   cudaDeviceSynchronize();
   if (Verbose)
