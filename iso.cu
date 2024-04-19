@@ -378,9 +378,6 @@ positional:
   ntri = d_atomicCounter[0];
   d_triangleVertices.resize(3 * ntri);
   d_atomicCounter[0] = 0;
-  numJobs = 8 * ncell;
-  blockSize = 512;
-  numBlocks = (numJobs + blockSize - 1) / blockSize;
   extractTriangles<<<numBlocks, blockSize>>>(
       thrust::raw_pointer_cast(d_cells.data()), ncell, maxlevel, iso,
       thrust::raw_pointer_cast(d_triangleVertices.data()),
@@ -399,7 +396,6 @@ positional:
   thrust::device_vector<int3> d_tri(ntri);
   d_atomicCounter[0] = 0;
   numJobs = 3 * ntri;
-  blockSize = 512;
   numBlocks = (numJobs + blockSize - 1) / blockSize;
   createVertexArray<<<numBlocks, blockSize>>>(
       thrust::raw_pointer_cast(d_atomicCounter.data()),
@@ -410,9 +406,6 @@ positional:
   nvert = d_atomicCounter[0];
   d_vert.resize(nvert);
   d_atomicCounter[0] = 0;
-  numJobs = 3 * ntri;
-  blockSize = 512;
-  numBlocks = (numJobs + blockSize - 1) / blockSize;
   createVertexArray<<<numBlocks, blockSize>>>(
       thrust::raw_pointer_cast(d_atomicCounter.data()),
       thrust::raw_pointer_cast(d_triangleVertices.data()),
