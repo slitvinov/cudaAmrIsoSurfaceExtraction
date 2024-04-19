@@ -384,10 +384,9 @@ positional:
   extractTriangles<<<numBlocks, blockSize>>>(
       thrust::raw_pointer_cast(d_cells.data()), ncell, maxlevel, iso,
       thrust::raw_pointer_cast(d_triangleVertices.data()),
-      d_triangleVertices.size(),
+      3 * ntri,
       thrust::raw_pointer_cast(d_atomicCounter.data()));
   cudaDeviceSynchronize();
-  fprintf(stderr, "iso: size: %ld\n", d_triangleVertices.size());
   try {
     thrust::sort(d_triangleVertices.begin(), d_triangleVertices.end(),
                  CompareVertices());
@@ -405,8 +404,8 @@ positional:
   createVertexArray<<<numBlocks, blockSize>>>(
       thrust::raw_pointer_cast(d_atomicCounter.data()),
       thrust::raw_pointer_cast(d_triangleVertices.data()),
-      d_triangleVertices.size(), thrust::raw_pointer_cast(d_vert.data()),
-      d_vert.size(), thrust::raw_pointer_cast(d_tri.data()));
+      d_triangleVertices.size(), NULL, 0,
+      thrust::raw_pointer_cast(d_tri.data()));
   cudaDeviceSynchronize();
   nvert = d_atomicCounter[0];
   d_vert.resize(nvert);
