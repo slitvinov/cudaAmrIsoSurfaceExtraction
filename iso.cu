@@ -237,7 +237,7 @@ static int comp(const void *av, const void *bv) {
 }
 
 int main(int argc, char **argv) {
-  float iso, *attr, *xyz;
+  float iso, *attr, xyz[3];
   TriangleVertex *vert;
   int3 *tri;
   size_t numJobs;
@@ -433,10 +433,6 @@ positional:
     fprintf(stderr, "iso: error: malloc failed\n");
     exit(1);
   }
-  if ((xyz = (float *)malloc(3 * nvert * sizeof *xyz)) == NULL) {
-    fprintf(stderr, "iso: error: malloc failed\n");
-    exit(1);
-  }
   if ((tri = (int3 *)malloc(ntri * sizeof *tri)) == NULL) {
     fprintf(stderr, "iso: error: malloc failed\n");
     exit(1);
@@ -463,13 +459,13 @@ positional:
     exit(1);
   }
   for (i = 0; i < nvert; i++) {
-    xyz[3 * i] = vert[i].position.x;
-    xyz[3 * i + 1] = vert[i].position.y;
-    xyz[3 * i + 2] = vert[i].position.z;
-  }
-  if (fwrite(xyz, 3 * nvert * sizeof *xyz, 1, file) != 1) {
-    fprintf(stderr, "iso: error: fail to write '%s'\n", xyz_path);
-    exit(1);
+    xyz[0] = vert[i].position.x;
+    xyz[1] = vert[i].position.y;
+    xyz[2] = vert[i].position.z;
+    if (fwrite(xyz, sizeof xyz, 1, file) != 1) {
+      fprintf(stderr, "iso: error: fail to write '%s'\n", xyz_path);
+      exit(1);
+    }
   }
   if (fclose(file) != 0) {
     fprintf(stderr, "iso: fail to close '%s'\n", xyz_path);
@@ -505,7 +501,6 @@ positional:
     fprintf(stderr, "iso: fail to close '%s'\n", attr_path);
     exit(1);
   }
-  free(xyz);
   free(vert);
   free(tri);
   free(cells);
