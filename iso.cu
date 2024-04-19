@@ -6,13 +6,15 @@
 #include <thrust/sort.h>
 
 struct vec3i {
-  __device__ vec3i() {}
-  __device__ vec3i(int x, int y, int z) : x(x), y(y), z(z) {}
   int x, y, z;
 };
 
 __device__ vec3i operator>>(const vec3i v, const int s) {
-  return vec3i(v.x >> s, v.y >> s, v.z >> s);
+  vec3i u;
+  u.x = v.x >> s;
+  u.y = v.y >> s;
+  u.z = v.z >> s;
+  return u;
 }
 
 __device__ __host__ long leftShift3(long x) {
