@@ -26,7 +26,7 @@ __device__ __host__ long leftShift3(long x) {
   return x;
 }
 
-__device__ __host__ long mortonCode(int x, int y, int z) {
+__device__ __host__ long morton(int x, int y, int z) {
   return (leftShift3(uint32_t(z)) << 2) | (leftShift3(uint32_t(y)) << 1) |
          (leftShift3(uint32_t(x)) << 0);
 }
@@ -92,7 +92,7 @@ struct AMR {
     const Cell *const __restrict__ begin = cellArray;
     const Cell *const __restrict__ end = cellArray + ncell;
     const Cell *it = thrust::system::detail::generic::scalar::lower_bound(
-        cellArray, cellArray + ncell, mortonCode(lower.x, lower.y, lower.z),
+        cellArray, cellArray + ncell, morton(lower.x, lower.y, lower.z),
         CompareMorton0());
     if (it == end)
       return false;
@@ -250,7 +250,7 @@ int main(int argc, char **argv) {
   char attr_path[FILENAME_MAX], xyz_path[FILENAME_MAX], tri_path[FILENAME_MAX],
       xdmf_path[FILENAME_MAX], *attr_base, *xyz_base, *tri_base, *cell_path,
       *scalar_path, *field_path, *output_path, *end;
-  struct Cell *cells;
+  struct Cell *cells, *d_cells;
 
   Verbose = 0;
   while (*++argv != NULL && argv[0][0] == '-')
@@ -346,7 +346,7 @@ positional:
     cells[i].lower.y -= oy;
     cells[i].lower.z -= oz;
     cells[i].morton =
-        mortonCode(cells[i].lower.x, cells[i].lower.y, cells[i].lower.z);
+        morton(cells[i].lower.x, cells[i].lower.y, cells[i].lower.z);
   }
 
   if (Verbose)
@@ -365,7 +365,6 @@ positional:
     exit(1);
   }
   qsort(cells, ncell, sizeof *cells, comp);
-  struct Cell *d_cells;
   cudaMalloc(&d_cells, ncell * sizeof *d_cells);
   cudaMemcpy(d_cells, cells, ncell * sizeof *d_cells, cudaMemcpyHostToDevice);
   thrust::device_vector<int> d_atomicCounter(1);
