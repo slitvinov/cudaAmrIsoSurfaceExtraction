@@ -364,10 +364,6 @@ positional:
   }
   qsort(cells, ncell, sizeof *cells, comp);
   thrust::device_vector<Cell> d_cells{cells, cells + ncell};
-  numJobs = ncell;
-  blockSize = 512;
-  numBlocks = (numJobs + blockSize - 1) / blockSize;
-
   thrust::device_vector<int> d_atomicCounter(1);
   thrust::device_vector<TriangleVertex> d_triangleVertices(0);
   d_atomicCounter[0] = 0;
