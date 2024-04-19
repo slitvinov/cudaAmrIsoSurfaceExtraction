@@ -378,6 +378,8 @@ positional:
       thrust::raw_pointer_cast(d_atomicCounter.data()));
   cudaDeviceSynchronize();
   ntri = d_atomicCounter[0];
+  if (Verbose)
+    fprintf(stderr, "iso: ntri: %ld\n", ntri);
   d_triangleVertices.resize(3 * ntri);
   d_atomicCounter[0] = 0;
   extractTriangles<<<numBlocks, blockSize>>>(
@@ -405,6 +407,8 @@ positional:
       thrust::raw_pointer_cast(d_tri.data()));
   cudaDeviceSynchronize();
   nvert = d_atomicCounter[0];
+  if (Verbose)
+    fprintf(stderr, "iso: nvert: %ld\n", nvert);
   d_vert.resize(nvert);
   d_atomicCounter[0] = 0;
   createVertexArray<<<numBlocks, blockSize>>>(
@@ -413,8 +417,6 @@ positional:
       thrust::raw_pointer_cast(d_vert.data()), nvert,
       thrust::raw_pointer_cast(d_tri.data()));
   cudaDeviceSynchronize();
-  if (Verbose)
-    fprintf(stderr, "iso: nvert: %ld\n", nvert);
   assert(d_tri.size() == ntri);
   assert(d_vert.size() == nvert);
   if ((vert = (TriangleVertex *)malloc(nvert * sizeof *vert)) == NULL) {
