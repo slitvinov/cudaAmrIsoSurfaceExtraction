@@ -376,8 +376,7 @@ positional:
   numBlocks = (numJobs + blockSize - 1) / blockSize;
   extractTriangles<<<numBlocks, blockSize>>>(
       thrust::raw_pointer_cast(d_cells.data()), ncell, maxlevel, iso,
-      thrust::raw_pointer_cast(d_triangleVertices.data()),
-      d_triangleVertices.size(),
+      NULL, 0,
       thrust::raw_pointer_cast(d_atomicCounter.data()));
   cudaDeviceSynchronize();
   ntri = d_atomicCounter[0];
