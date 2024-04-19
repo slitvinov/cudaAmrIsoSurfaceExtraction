@@ -363,7 +363,9 @@ positional:
     exit(1);
   }
   qsort(cells, ncell, sizeof *cells, comp);
-  thrust::device_vector<Cell> d_cells{cells, cells + ncell};
+  struct Cell *d_cells;
+  cudaMalloc(&d_cells, ncell * sizeof *d_cells);
+  cudaMemcpy(d_cells, cells, ncell * sizeof *d_cells, cudaMemcpyHostToDevice);
   thrust::device_vector<int> d_atomicCounter(1);
   thrust::device_vector<TriangleVertex> d_triangleVertices(0);
   d_atomicCounter[0] = 0;
@@ -371,19 +373,18 @@ positional:
   blockSize = 512;
   numBlocks = (numJobs + blockSize - 1) / blockSize;
   extractTriangles<<<numBlocks, blockSize>>>(
-      thrust::raw_pointer_cast(d_cells.data()), ncell, maxlevel, iso,
-      NULL, 0,
+      d_cells, ncell, maxlevel, iso, NULL, 0,
       thrust::raw_pointer_cast(d_atomicCounter.data()));
   cudaDeviceSynchronize();
   ntri = d_atomicCounter[0];
   d_triangleVertices.resize(3 * ntri);
   d_atomicCounter[0] = 0;
   extractTriangles<<<numBlocks, blockSize>>>(
-      thrust::raw_pointer_cast(d_cells.data()), ncell, maxlevel, iso,
-      thrust::raw_pointer_cast(d_triangleVertices.data()),
-      3 * ntri,
+      d_cells, ncell, maxlevel, iso,
+      thrust::raw_pointer_cast(d_triangleVertices.data()), 3 * ntri,
       thrust::raw_pointer_cast(d_atomicCounter.data()));
   cudaDeviceSynchronize();
+  cudaFree(d_cells);
   try {
     thrust::sort(d_triangleVertices.begin(), d_triangleVertices.end(),
                  CompareVertices());
@@ -399,8 +400,7 @@ positional:
   numBlocks = (numJobs + blockSize - 1) / blockSize;
   createVertexArray<<<numBlocks, blockSize>>>(
       thrust::raw_pointer_cast(d_atomicCounter.data()),
-      thrust::raw_pointer_cast(d_triangleVertices.data()),
-      3 * ntri, NULL, 0,
+      thrust::raw_pointer_cast(d_triangleVertices.data()), 3 * ntri, NULL, 0,
       thrust::raw_pointer_cast(d_tri.data()));
   cudaDeviceSynchronize();
   nvert = d_atomicCounter[0];
@@ -408,8 +408,8 @@ positional:
   d_atomicCounter[0] = 0;
   createVertexArray<<<numBlocks, blockSize>>>(
       thrust::raw_pointer_cast(d_atomicCounter.data()),
-      thrust::raw_pointer_cast(d_triangleVertices.data()),
-      3 * ntri, thrust::raw_pointer_cast(d_vert.data()), nvert,
+      thrust::raw_pointer_cast(d_triangleVertices.data()), 3 * ntri,
+      thrust::raw_pointer_cast(d_vert.data()), nvert,
       thrust::raw_pointer_cast(d_tri.data()));
   cudaDeviceSynchronize();
   if (Verbose)
