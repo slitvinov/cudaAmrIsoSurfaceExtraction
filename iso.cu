@@ -357,15 +357,15 @@ positional:
     fprintf(stderr, "iso: ncell, maxlevel, origin: %ld %d [%d %d %d]\n", ncell,
             maxlevel, ox, oy, oz);
   if (fclose(cell_file) != 0) {
-    fprintf(stderr, "cylinder: error: fail to close '%s'\n", cell_path);
+    fprintf(stderr, "iso: error: fail to close '%s'\n", cell_path);
     exit(1);
   }
   if (fclose(scalar_file) != 0) {
-    fprintf(stderr, "cylinder: error: fail to close '%s'\n", scalar_path);
+    fprintf(stderr, "iso: error: fail to close '%s'\n", scalar_path);
     exit(1);
   }
   if (fclose(field_file) != 0) {
-    fprintf(stderr, "cylinder: error: fail to close '%s'\n", field_path);
+    fprintf(stderr, "iso: error: fail to close '%s'\n", field_path);
     exit(1);
   }
   qsort(cells, ncell, sizeof *cells, comp);
