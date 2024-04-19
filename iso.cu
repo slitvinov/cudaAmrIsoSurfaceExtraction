@@ -74,12 +74,6 @@ struct CompareMorton0 {
   }
 };
 
-struct CompareMorton1 {
-  __device__ bool operator()(const Cell &a, const Cell &b) {
-    return a.morton < b.morton;
-  }
-};
-
 struct CompareVertices {
   __device__ bool operator()(const TriangleVertex &a,
                              const TriangleVertex &b) const {
@@ -239,7 +233,7 @@ static int comp(const void *av, const void *bv) {
   struct Cell *a, *b;
   a = (struct Cell *)av;
   b = (struct Cell *)bv;
-  return a->morton - b->morton;
+  return a->morton > b->morton;
 }
 
 int main(int argc, char **argv) {
@@ -370,13 +364,6 @@ positional:
   }
   qsort(cells, ncell, sizeof *cells, comp);
   thrust::device_vector<Cell> d_cells{cells, cells + ncell};
-  try {
-    thrust::sort(d_cells.begin(), d_cells.end(), CompareMorton1());
-    cudaDeviceSynchronize();
-  } catch (thrust::system::system_error) {
-    fprintf(stderr, "iso: thrust::sort failed\n");
-    exit(1);
-  }
   numJobs = ncell;
   blockSize = 512;
   numBlocks = (numJobs + blockSize - 1) / blockSize;
