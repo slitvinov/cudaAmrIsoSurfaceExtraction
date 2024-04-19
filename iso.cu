@@ -375,7 +375,7 @@ positional:
   blockSize = 512;
   numBlocks = (numJobs + blockSize - 1) / blockSize;
   extractTriangles<<<numBlocks, blockSize>>>(
-      thrust::raw_pointer_cast(d_cells.data()), d_cells.size(), maxlevel, iso,
+      thrust::raw_pointer_cast(d_cells.data()), ncell, maxlevel, iso,
       thrust::raw_pointer_cast(d_triangleVertices.data()),
       d_triangleVertices.size(),
       thrust::raw_pointer_cast(d_atomicCounter.data()));
@@ -387,7 +387,7 @@ positional:
   blockSize = 512;
   numBlocks = (numJobs + blockSize - 1) / blockSize;
   extractTriangles<<<numBlocks, blockSize>>>(
-      thrust::raw_pointer_cast(d_cells.data()), d_cells.size(), maxlevel, iso,
+      thrust::raw_pointer_cast(d_cells.data()), ncell, maxlevel, iso,
       thrust::raw_pointer_cast(d_triangleVertices.data()),
       d_triangleVertices.size(),
       thrust::raw_pointer_cast(d_atomicCounter.data()));
