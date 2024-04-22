@@ -3,13 +3,12 @@
 #include <stdio.h>
 #include <thrust/binary_search.h>
 #include <thrust/device_vector.h>
-#include <thrust/sort.h>
 
 struct vec3i {
   int x, y, z;
 };
 
-__device__ vec3i operator>>(const vec3i v, const int s) {
+static __device__ vec3i operator>>(const vec3i v, const int s) {
   vec3i u;
   u.x = v.x >> s;
   u.y = v.y >> s;
@@ -17,7 +16,7 @@ __device__ vec3i operator>>(const vec3i v, const int s) {
   return u;
 }
 
-__device__ __host__ long leftShift3(long x) {
+static __device__ __host__ long leftShift3(long x) {
   x = (x | x << 32) & 0x1f00000000ffffull;
   x = (x | x << 16) & 0x1f0000ff0000ffull;
   x = (x | x << 8) & 0x100f00f00f00f00full;
@@ -26,7 +25,7 @@ __device__ __host__ long leftShift3(long x) {
   return x;
 }
 
-__device__ __host__ long morton(int x, int y, int z) {
+static __device__ __host__ long morton(int x, int y, int z) {
   return (leftShift3(uint32_t(z)) << 2) | (leftShift3(uint32_t(y)) << 1) |
          (leftShift3(uint32_t(x)) << 0);
 }
@@ -45,10 +44,10 @@ struct TriangleVertex {
   uint32_t id;
 };
 
-__device__ bool operator==(const vec3f &a, const vec3f &b) {
+static __device__ bool operator==(const vec3f &a, const vec3f &b) {
   return a.x == b.x && a.y == b.y && a.z == b.z;
 }
-__device__ bool operator<(const vec3f &a, const vec3f &b) {
+static __device__ __host__ bool operator<(const vec3f &a, const vec3f &b) {
   return (a.x < b.x) ||
          ((a.x == b.x) && ((a.y < b.y) || (a.y == b.y) && (a.z < b.z)));
 }
@@ -60,7 +59,7 @@ struct Cell {
   float scalar, field;
 };
 
-__device__ struct TriangleVertex dual(struct Cell c) {
+static __device__ struct TriangleVertex dual(struct Cell c) {
   struct TriangleVertex v;
   v.position.x = c.lower.x + 0.5 * (1 << c.level);
   v.position.y = c.lower.y + 0.5 * (1 << c.level);
@@ -82,6 +81,13 @@ struct CompareVertices {
     return a.position < b.position;
   }
 };
+
+static int comp_vert(const void *av, const void *bv) {
+  struct TriangleVertex *a, *b;
+  a = (struct TriangleVertex *)av;
+  b = (struct TriangleVertex *)bv;
+  return a->position < b->position;
+}
 
 struct AMR {
   __device__ AMR(const Cell *const __restrict__ cellArray, const int ncell)
@@ -121,7 +127,7 @@ struct AMR {
 __global__ void extractTriangles(const Cell *const __restrict__ cellArray,
                                  int ncell, int maxlevel, float iso,
                                  TriangleVertex *__restrict__ out, int size,
-                                 int *cnt) {
+                                 unsigned long long int *cnt) {
   size_t tid;
   int x, y, z, id, index, i, j, k, ii, wid, did, dx, dy, dz, ix, iy, iz;
   int8_t *edge, *vert;
@@ -203,8 +209,9 @@ __global__ void extractTriangles(const Cell *const __restrict__ cellArray,
 }
 
 __global__ void
-createVertexArray(int *cnt, const TriangleVertex *const __restrict__ vertices,
-                  int nvert, TriangleVertex *vert, int size, int3 *index) {
+createVertexArray(unsigned long long int *cnt,
+                  const TriangleVertex *const __restrict__ vertices, int nvert,
+                  TriangleVertex *vert, int size, int3 *index) {
   int i, j, k, l, id, tid, *tri;
   TriangleVertex vertex;
   tid = blockIdx.x * blockDim.x + threadIdx.x;
@@ -251,6 +258,7 @@ int main(int argc, char **argv) {
       xdmf_path[FILENAME_MAX], *attr_base, *xyz_base, *tri_base, *cell_path,
       *scalar_path, *field_path, *output_path, *end;
   struct Cell *cells, *d_cells;
+  struct TriangleVertex *d_tv, *tv;
 
   Verbose = 0;
   while (*++argv != NULL && argv[0][0] == '-')
@@ -367,8 +375,7 @@ positional:
   qsort(cells, ncell, sizeof *cells, comp);
   cudaMalloc(&d_cells, ncell * sizeof *d_cells);
   cudaMemcpy(d_cells, cells, ncell * sizeof *d_cells, cudaMemcpyHostToDevice);
-  thrust::device_vector<int> d_atomicCounter(1);
-  thrust::device_vector<TriangleVertex> d_triangleVertices(0);
+  thrust::device_vector<unsigned long long int> d_atomicCounter(1);
   d_atomicCounter[0] = 0;
   numJobs = 8 * ncell;
   blockSize = 512;
@@ -380,45 +387,37 @@ positional:
   ntri = d_atomicCounter[0];
   if (Verbose)
     fprintf(stderr, "iso: ntri: %ld\n", ntri);
-  d_triangleVertices.resize(3 * ntri);
+  cudaMalloc(&d_tv, 3 * ntri * sizeof *d_tv);
   d_atomicCounter[0] = 0;
   extractTriangles<<<numBlocks, blockSize>>>(
-      d_cells, ncell, maxlevel, iso,
-      thrust::raw_pointer_cast(d_triangleVertices.data()), 3 * ntri,
+      d_cells, ncell, maxlevel, iso, d_tv, 3 * ntri,
       thrust::raw_pointer_cast(d_atomicCounter.data()));
   cudaDeviceSynchronize();
   cudaFree(d_cells);
-  try {
-    thrust::sort(d_triangleVertices.begin(), d_triangleVertices.end(),
-                 CompareVertices());
-    cudaDeviceSynchronize();
-  } catch (thrust::system::system_error) {
-    fprintf(stderr, "iso: thrust::sort failed\n");
-    exit(1);
-  }
-  thrust::device_vector<TriangleVertex> d_vert(0);
-  thrust::device_vector<int3> d_tri(ntri);
+  tv = (struct TriangleVertex *)malloc(3 * ntri * sizeof *tv);
+  cudaMemcpy(tv, d_tv, 3 * ntri * sizeof *tv, cudaMemcpyDeviceToHost);
+  qsort(tv, 3 * ntri, sizeof *tv, comp_vert);
+  cudaMemcpy(d_tv, tv, 3 * ntri * sizeof *tv, cudaMemcpyHostToDevice);
+  free(tv);
+
   d_atomicCounter[0] = 0;
   numJobs = 3 * ntri;
   numBlocks = (numJobs + blockSize - 1) / blockSize;
   createVertexArray<<<numBlocks, blockSize>>>(
-      thrust::raw_pointer_cast(d_atomicCounter.data()),
-      thrust::raw_pointer_cast(d_triangleVertices.data()), 3 * ntri, NULL, 0,
-      thrust::raw_pointer_cast(d_tri.data()));
+      thrust::raw_pointer_cast(d_atomicCounter.data()), d_tv, 3 * ntri, NULL, 0,
+      NULL);
   cudaDeviceSynchronize();
   nvert = d_atomicCounter[0];
   if (Verbose)
     fprintf(stderr, "iso: nvert: %ld\n", nvert);
-  d_vert.resize(nvert);
+  thrust::device_vector<int3> d_tri(ntri);
+  thrust::device_vector<TriangleVertex> d_vert(nvert);
   d_atomicCounter[0] = 0;
   createVertexArray<<<numBlocks, blockSize>>>(
-      thrust::raw_pointer_cast(d_atomicCounter.data()),
-      thrust::raw_pointer_cast(d_triangleVertices.data()), 3 * ntri,
+      thrust::raw_pointer_cast(d_atomicCounter.data()), d_tv, 3 * ntri,
       thrust::raw_pointer_cast(d_vert.data()), nvert,
       thrust::raw_pointer_cast(d_tri.data()));
   cudaDeviceSynchronize();
-  assert(d_tri.size() == ntri);
-  assert(d_vert.size() == nvert);
   if ((vert = (TriangleVertex *)malloc(nvert * sizeof *vert)) == NULL) {
     fprintf(stderr, "iso: error: malloc failed\n");
     exit(1);
