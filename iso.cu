@@ -82,13 +82,6 @@ struct CompareVertices {
   }
 };
 
-static int comp_vert(const void *av, const void *bv) {
-  struct TriangleVertex *a, *b;
-  a = (struct TriangleVertex *)av;
-  b = (struct TriangleVertex *)bv;
-  return a->position < b->position;
-}
-
 struct AMR {
   __device__ AMR(const Cell *const __restrict__ cellArray, const int ncell)
       : cellArray(cellArray), ncell(ncell) {}
@@ -245,10 +238,16 @@ static int comp(const void *av, const void *bv) {
   return a->morton > b->morton;
 }
 
+static int comp_vert(const void *av, const void *bv) {
+  struct TriangleVertex *a, *b;
+  a = (struct TriangleVertex *)av;
+  b = (struct TriangleVertex *)bv;
+  return a->position < b->position;
+}
+
 int main(int argc, char **argv) {
   float iso, *attr, xyz[3];
-  TriangleVertex *vert;
-  int3 *tri;
+  int3 *tri, *d_tri;
   size_t numJobs;
   int Verbose, maxlevel, blockSize, numBlocks;
   long i, j, nvert, ntri, ncell, size;
@@ -258,7 +257,7 @@ int main(int argc, char **argv) {
       xdmf_path[FILENAME_MAX], *attr_base, *xyz_base, *tri_base, *cell_path,
       *scalar_path, *field_path, *output_path, *end;
   struct Cell *cells, *d_cells;
-  struct TriangleVertex *d_tv, *tv;
+  struct TriangleVertex *d_tv, *tv, *d_vert, *vert;
 
   Verbose = 0;
   while (*++argv != NULL && argv[0][0] == '-')
@@ -410,13 +409,12 @@ positional:
   nvert = d_atomicCounter[0];
   if (Verbose)
     fprintf(stderr, "iso: nvert: %ld\n", nvert);
-  int3 *d_tri;
   cudaMalloc(&d_tri, ntri * sizeof *d_tri);
-  thrust::device_vector<TriangleVertex> d_vert(nvert);
+  cudaMalloc(&d_vert, nvert * sizeof *d_vert);
   d_atomicCounter[0] = 0;
   createVertexArray<<<numBlocks, blockSize>>>(
-      thrust::raw_pointer_cast(d_atomicCounter.data()), d_tv, 3 * ntri,
-      thrust::raw_pointer_cast(d_vert.data()), nvert, d_tri);
+      thrust::raw_pointer_cast(d_atomicCounter.data()), d_tv, 3 * ntri, d_vert,
+      nvert, d_tri);
   cudaDeviceSynchronize();
   if ((vert = (TriangleVertex *)malloc(nvert * sizeof *vert)) == NULL) {
     fprintf(stderr, "iso: error: malloc failed\n");
@@ -426,9 +424,10 @@ positional:
     fprintf(stderr, "iso: error: malloc failed\n");
     exit(1);
   }
-  thrust::copy(d_vert.begin(), d_vert.end(), vert);
+  cudaMemcpy(vert, d_vert, nvert * sizeof *d_vert, cudaMemcpyDeviceToHost);
   cudaMemcpy(tri, d_tri, ntri * sizeof *d_tri, cudaMemcpyDeviceToHost);
   cudaFree(d_tri);
+  cudaFree(d_vert);
 
   snprintf(xyz_path, sizeof xyz_path, "%s.xyz.raw", output_path);
   snprintf(tri_path, sizeof tri_path, "%s.tri.raw", output_path);
