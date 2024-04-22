@@ -376,7 +376,8 @@ positional:
   cudaMalloc(&d_cells, ncell * sizeof *d_cells);
   cudaMemcpy(d_cells, cells, ncell * sizeof *d_cells, cudaMemcpyHostToDevice);
   thrust::device_vector<unsigned long long int> d_cnt(1);
-  d_cnt[0] = 0;
+  unsigned long long int *d_cnt0 = thrust::raw_pointer_cast(d_cnt.data());
+  cudaMemset(&d_cnt0, 0, sizeof *d_cnt0);
   numJobs = 8 * ncell;
   blockSize = 512;
   numBlocks = (numJobs + blockSize - 1) / blockSize;
@@ -384,7 +385,7 @@ positional:
       d_cells, ncell, maxlevel, iso, NULL, 0,
       thrust::raw_pointer_cast(d_cnt.data()));
   cudaDeviceSynchronize();
-  ntri = d_cnt[0];
+  cudaMemcpy(&ntri, d_cnt0, sizeof *d_cnt0, cudaMemcpyDeviceToHost);
   if (Verbose)
     fprintf(stderr, "iso: ntri: %ld\n", ntri);
   cudaMalloc(&d_tv, 3 * ntri * sizeof *d_tv);
@@ -406,7 +407,7 @@ positional:
   createVertexArray<<<numBlocks, blockSize>>>(
       thrust::raw_pointer_cast(d_cnt.data()), d_tv, 3 * ntri, NULL, 0, NULL);
   cudaDeviceSynchronize();
-  nvert = d_cnt[0];
+  cudaMemcpy(&nvert, d_cnt0, sizeof *d_cnt0, cudaMemcpyDeviceToHost);
   if (Verbose)
     fprintf(stderr, "iso: nvert: %ld\n", nvert);
   cudaMalloc(&d_tri, ntri * sizeof *d_tri);
