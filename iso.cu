@@ -250,7 +250,7 @@ int main(int argc, char **argv) {
   int3 *tri, *d_tri;
   size_t numJobs;
   int Verbose, maxlevel, blockSize, numBlocks;
-  long i, j, nvert, ntri, ncell, size;
+  long i, j, ncell, size;
   FILE *file, *cell_file, *scalar_file, *field_file;
   int cell[4], ox, oy, oz;
   char attr_path[FILENAME_MAX], xyz_path[FILENAME_MAX], tri_path[FILENAME_MAX],
@@ -258,6 +258,7 @@ int main(int argc, char **argv) {
       *scalar_path, *field_path, *output_path, *end;
   struct Cell *cells, *d_cells;
   struct TriangleVertex *d_tv, *tv, *d_vert, *vert;
+  unsigned long long int nvert, ntri;
 
   Verbose = 0;
   while (*++argv != NULL && argv[0][0] == '-')
