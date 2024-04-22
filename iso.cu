@@ -374,23 +374,23 @@ positional:
   qsort(cells, ncell, sizeof *cells, comp);
   cudaMalloc(&d_cells, ncell * sizeof *d_cells);
   cudaMemcpy(d_cells, cells, ncell * sizeof *d_cells, cudaMemcpyHostToDevice);
-  thrust::device_vector<unsigned long long int> d_atomicCounter(1);
-  d_atomicCounter[0] = 0;
+  thrust::device_vector<unsigned long long int> d_cnt(1);
+  d_cnt[0] = 0;
   numJobs = 8 * ncell;
   blockSize = 512;
   numBlocks = (numJobs + blockSize - 1) / blockSize;
   extractTriangles<<<numBlocks, blockSize>>>(
       d_cells, ncell, maxlevel, iso, NULL, 0,
-      thrust::raw_pointer_cast(d_atomicCounter.data()));
+      thrust::raw_pointer_cast(d_cnt.data()));
   cudaDeviceSynchronize();
-  ntri = d_atomicCounter[0];
+  ntri = d_cnt[0];
   if (Verbose)
     fprintf(stderr, "iso: ntri: %ld\n", ntri);
   cudaMalloc(&d_tv, 3 * ntri * sizeof *d_tv);
-  d_atomicCounter[0] = 0;
+  d_cnt[0] = 0;
   extractTriangles<<<numBlocks, blockSize>>>(
       d_cells, ncell, maxlevel, iso, d_tv, 3 * ntri,
-      thrust::raw_pointer_cast(d_atomicCounter.data()));
+      thrust::raw_pointer_cast(d_cnt.data()));
   cudaDeviceSynchronize();
   cudaFree(d_cells);
   tv = (struct TriangleVertex *)malloc(3 * ntri * sizeof *tv);
@@ -399,22 +399,21 @@ positional:
   cudaMemcpy(d_tv, tv, 3 * ntri * sizeof *tv, cudaMemcpyHostToDevice);
   free(tv);
 
-  d_atomicCounter[0] = 0;
+  d_cnt[0] = 0;
   numJobs = 3 * ntri;
   numBlocks = (numJobs + blockSize - 1) / blockSize;
   createVertexArray<<<numBlocks, blockSize>>>(
-      thrust::raw_pointer_cast(d_atomicCounter.data()), d_tv, 3 * ntri, NULL, 0,
-      NULL);
+      thrust::raw_pointer_cast(d_cnt.data()), d_tv, 3 * ntri, NULL, 0, NULL);
   cudaDeviceSynchronize();
-  nvert = d_atomicCounter[0];
+  nvert = d_cnt[0];
   if (Verbose)
     fprintf(stderr, "iso: nvert: %ld\n", nvert);
   cudaMalloc(&d_tri, ntri * sizeof *d_tri);
   cudaMalloc(&d_vert, nvert * sizeof *d_vert);
-  d_atomicCounter[0] = 0;
+  d_cnt[0] = 0;
   createVertexArray<<<numBlocks, blockSize>>>(
-      thrust::raw_pointer_cast(d_atomicCounter.data()), d_tv, 3 * ntri, d_vert,
-      nvert, d_tri);
+      thrust::raw_pointer_cast(d_cnt.data()), d_tv, 3 * ntri, d_vert, nvert,
+      d_tri);
   cudaDeviceSynchronize();
   if ((vert = (TriangleVertex *)malloc(nvert * sizeof *vert)) == NULL) {
     fprintf(stderr, "iso: error: malloc failed\n");
