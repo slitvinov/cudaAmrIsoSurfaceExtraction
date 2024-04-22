@@ -410,13 +410,13 @@ positional:
   nvert = d_atomicCounter[0];
   if (Verbose)
     fprintf(stderr, "iso: nvert: %ld\n", nvert);
-  thrust::device_vector<int3> d_tri(ntri);
+  int3 *d_tri;
+  cudaMalloc(&d_tri, ntri * sizeof *d_tri);
   thrust::device_vector<TriangleVertex> d_vert(nvert);
   d_atomicCounter[0] = 0;
   createVertexArray<<<numBlocks, blockSize>>>(
       thrust::raw_pointer_cast(d_atomicCounter.data()), d_tv, 3 * ntri,
-      thrust::raw_pointer_cast(d_vert.data()), nvert,
-      thrust::raw_pointer_cast(d_tri.data()));
+      thrust::raw_pointer_cast(d_vert.data()), nvert, d_tri);
   cudaDeviceSynchronize();
   if ((vert = (TriangleVertex *)malloc(nvert * sizeof *vert)) == NULL) {
     fprintf(stderr, "iso: error: malloc failed\n");
@@ -427,7 +427,8 @@ positional:
     exit(1);
   }
   thrust::copy(d_vert.begin(), d_vert.end(), vert);
-  thrust::copy(d_tri.begin(), d_tri.end(), tri);
+  cudaMemcpy(tri, d_tri, ntri * sizeof *d_tri, cudaMemcpyDeviceToHost);
+  cudaFree(d_tri);
 
   snprintf(xyz_path, sizeof xyz_path, "%s.xyz.raw", output_path);
   snprintf(tri_path, sizeof tri_path, "%s.tri.raw", output_path);
