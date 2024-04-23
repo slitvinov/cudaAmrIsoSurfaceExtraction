@@ -32,8 +32,6 @@ static __device__ __host__ long morton(int x, int y, int z) {
 
 struct vec3f {
   __device__ vec3f() {}
-  __device__ vec3f(const float x, const float y, const float z)
-      : x(x), y(y), z(z) {}
   __device__ vec3f(const vec3i o) : x(o.x), y(o.y), z(o.z) {}
   float x, y, z;
 };
