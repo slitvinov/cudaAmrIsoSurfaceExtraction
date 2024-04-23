@@ -27,7 +27,7 @@ static __device__ __host__ long leftShift3(long x) {
 
 static __device__ __host__ long morton(int x, int y, int z) {
   return (leftShift3(uint32_t(z)) << 2) | (leftShift3(uint32_t(y)) << 1) |
-         (leftShift3(uint32_t(x)) << 0);
+	 (leftShift3(uint32_t(x)) << 0);
 }
 
 struct vec3f {
@@ -47,7 +47,7 @@ static __device__ bool operator==(const vec3f &a, const vec3f &b) {
 }
 static __device__ __host__ bool operator<(const vec3f &a, const vec3f &b) {
   return (a.x < b.x) ||
-         ((a.x == b.x) && ((a.y < b.y) || (a.y == b.y) && (a.z < b.z)));
+	 ((a.x == b.x) && ((a.y < b.y) || (a.y == b.y) && (a.z < b.z)));
 }
 
 struct Cell {
@@ -75,7 +75,7 @@ struct CompareMorton0 {
 
 struct CompareVertices {
   __device__ bool operator()(const TriangleVertex &a,
-                             const TriangleVertex &b) const {
+			     const TriangleVertex &b) const {
     return a.position < b.position;
   }
 };
@@ -85,27 +85,28 @@ struct AMR {
       : cellArray(cellArray), ncell(ncell) {}
 
   __device__ bool findActual(struct Cell &result, const vec3i lower,
-                             int level) {
+			     int level) {
+    int f;
     const Cell *const __restrict__ begin = cellArray;
     const Cell *const __restrict__ end = cellArray + ncell;
     const Cell *it = thrust::system::detail::generic::scalar::lower_bound(
-        cellArray, cellArray + ncell, morton(lower.x, lower.y, lower.z),
-        CompareMorton0());
+	cellArray, cellArray + ncell, morton(lower.x, lower.y, lower.z),
+	CompareMorton0());
     if (it == end)
       return false;
     const Cell found = *it;
-    if ((found.lower >> max(level, found.level)) ==
-        (lower >> max(level, found.level))) {
+
+    f = max(level, found.level);
+    if ((found.lower >> f) == (lower >> f)) {
       result = found;
       return true;
     }
-
     if (it > begin) {
       const Cell found = it[-1];
-      if ((found.lower >> max(level, found.level)) ==
-          (lower >> max(level, found.level))) {
-        result = found;
-        return true;
+      f = max(level, found.level);
+      if ((found.lower >> f) == (lower >> f)) {
+	result = found;
+	return true;
       }
     }
     return false;
@@ -116,9 +117,9 @@ struct AMR {
 };
 
 __global__ void extractTriangles(const Cell *const __restrict__ cellArray,
-                                 int ncell, int maxlevel, float iso,
-                                 TriangleVertex *__restrict__ out, int size,
-                                 unsigned long long int *cnt) {
+				 int ncell, int maxlevel, float iso,
+				 TriangleVertex *__restrict__ out, int size,
+				 unsigned long long int *cnt) {
   size_t tid;
   int x, y, z, id, index, i, j, k, ii, wid, did, dx, dy, dz, ix, iy, iz;
   int8_t *edge, *vert;
@@ -139,16 +140,16 @@ __global__ void extractTriangles(const Cell *const __restrict__ cellArray,
   for (iz = 0; iz < 2; iz++)
     for (iy = 0; iy < 2; iy++)
       for (ix = 0; ix < 2; ix++) {
-        lower.x = cell.lower.x + dx * ix * (1 << cell.level);
-        lower.y = cell.lower.y + dy * iy * (1 << cell.level);
-        lower.z = cell.lower.z + dz * iz * (1 << cell.level);
-        if (!amr.findActual(corner[iz][iy][ix], lower, cell.level))
-          return;
-        if (corner[iz][iy][ix].level < cell.level)
-          return;
-        if (corner[iz][iy][ix].level == cell.level &&
-            corner[iz][iy][ix].lower < cell.lower)
-          return;
+	lower.x = cell.lower.x + dx * ix * (1 << cell.level);
+	lower.y = cell.lower.y + dy * iy * (1 << cell.level);
+	lower.z = cell.lower.z + dz * iz * (1 << cell.level);
+	if (!amr.findActual(corner[iz][iy][ix], lower, cell.level))
+	  return;
+	if (corner[iz][iy][ix].level < cell.level)
+	  return;
+	if (corner[iz][iy][ix].level == cell.level &&
+	    corner[iz][iy][ix].lower < cell.lower)
+	  return;
       }
   x = dx == -1;
   y = dy == -1;
@@ -201,8 +202,8 @@ __global__ void extractTriangles(const Cell *const __restrict__ cellArray,
 
 __global__ void
 createVertexArray(unsigned long long int *cnt,
-                  const TriangleVertex *const __restrict__ vertices, int nvert,
-                  TriangleVertex *vert, int size, int3 *index) {
+		  const TriangleVertex *const __restrict__ vertices, int nvert,
+		  TriangleVertex *vert, int size, int3 *index) {
   int i, j, k, l, id, tid, *tri;
   TriangleVertex vertex;
   tid = blockIdx.x * blockDim.x + threadIdx.x;
@@ -352,12 +353,12 @@ positional:
     cells[i].lower.y -= oy;
     cells[i].lower.z -= oz;
     cells[i].morton =
-        morton(cells[i].lower.x, cells[i].lower.y, cells[i].lower.z);
+	morton(cells[i].lower.x, cells[i].lower.y, cells[i].lower.z);
   }
 
   if (Verbose)
     fprintf(stderr, "iso: ncell, maxlevel, origin: %ld %d [%d %d %d]\n", ncell,
-            maxlevel, ox, oy, oz);
+	    maxlevel, ox, oy, oz);
   if (fclose(cell_file) != 0) {
     fprintf(stderr, "iso: error: fail to close '%s'\n", cell_path);
     exit(1);
@@ -380,7 +381,7 @@ positional:
   blockSize = 512;
   numBlocks = (numJobs + blockSize - 1) / blockSize;
   extractTriangles<<<numBlocks, blockSize>>>(d_cells, ncell, maxlevel, iso,
-                                             NULL, 0, d_cnt0);
+					     NULL, 0, d_cnt0);
   cudaDeviceSynchronize();
   cudaMemcpy(&ntri, d_cnt0, sizeof *d_cnt0, cudaMemcpyDeviceToHost);
   if (Verbose)
@@ -388,7 +389,7 @@ positional:
   cudaMalloc(&d_tv, 3 * ntri * sizeof *d_tv);
   d_cnt[0] = 0;
   extractTriangles<<<numBlocks, blockSize>>>(d_cells, ncell, maxlevel, iso,
-                                             d_tv, 3 * ntri, d_cnt0);
+					     d_tv, 3 * ntri, d_cnt0);
   cudaDeviceSynchronize();
   cudaFree(d_cells);
   tv = (struct TriangleVertex *)malloc(3 * ntri * sizeof *tv);
@@ -401,7 +402,7 @@ positional:
   numJobs = 3 * ntri;
   numBlocks = (numJobs + blockSize - 1) / blockSize;
   createVertexArray<<<numBlocks, blockSize>>>(d_cnt0, d_tv, 3 * ntri, NULL, 0,
-                                              NULL);
+					      NULL);
   cudaDeviceSynchronize();
   cudaMemcpy(&nvert, d_cnt0, sizeof *d_cnt0, cudaMemcpyDeviceToHost);
   if (Verbose)
@@ -410,7 +411,7 @@ positional:
   cudaMalloc(&d_vert, nvert * sizeof *d_vert);
   d_cnt[0] = 0;
   createVertexArray<<<numBlocks, blockSize>>>(d_cnt0, d_tv, 3 * ntri, d_vert,
-                                              nvert, d_tri);
+					      nvert, d_tri);
   cudaDeviceSynchronize();
   if ((vert = (TriangleVertex *)malloc(nvert * sizeof *vert)) == NULL) {
     fprintf(stderr, "iso: error: malloc failed\n");
@@ -496,41 +497,41 @@ positional:
     exit(1);
   }
   fprintf(file,
-          "<Xdmf\n"
-          "    Version=\"2\">\n"
-          "  <Domain>\n"
-          "    <Grid>\n"
-          "      <Topology\n"
-          "         TopologyType=\"Triangle\"\n"
-          "         Dimensions=\"%ld\">\n"
-          "        <DataItem\n"
-          "            Dimensions=\"%ld 3\"\n"
-          "            NumberType=\"Int\"\n"
-          "            Format=\"Binary\">\n"
-          "          %s\n"
-          "        </DataItem>\n"
-          "      </Topology>\n"
-          "      <Geometry>\n"
-          "        <DataItem\n"
-          "            Dimensions=\"%ld 3\"\n"
-          "            Precision=\"4\"\n"
-          "            Format=\"Binary\">\n"
-          "          %s\n"
-          "        </DataItem>\n"
-          "      </Geometry>\n"
-          "      <Attribute\n"
-          "          Name=\"u\">\n"
-          "        <DataItem\n"
-          "            Dimensions=\"%ld\"\n"
-          "            Precision=\"4\"\n"
-          "            Format=\"Binary\">\n"
-          "          %s\n"
-          "        </DataItem>\n"
-          "      </Attribute>\n"
-          "    </Grid>\n"
-          "  </Domain>\n"
-          "</Xdmf>\n",
-          ntri, ntri, tri_base, nvert, xyz_base, nvert, attr_base);
+	  "<Xdmf\n"
+	  "    Version=\"2\">\n"
+	  "  <Domain>\n"
+	  "    <Grid>\n"
+	  "      <Topology\n"
+	  "         TopologyType=\"Triangle\"\n"
+	  "         Dimensions=\"%ld\">\n"
+	  "        <DataItem\n"
+	  "            Dimensions=\"%ld 3\"\n"
+	  "            NumberType=\"Int\"\n"
+	  "            Format=\"Binary\">\n"
+	  "          %s\n"
+	  "        </DataItem>\n"
+	  "      </Topology>\n"
+	  "      <Geometry>\n"
+	  "        <DataItem\n"
+	  "            Dimensions=\"%ld 3\"\n"
+	  "            Precision=\"4\"\n"
+	  "            Format=\"Binary\">\n"
+	  "          %s\n"
+	  "        </DataItem>\n"
+	  "      </Geometry>\n"
+	  "      <Attribute\n"
+	  "          Name=\"u\">\n"
+	  "        <DataItem\n"
+	  "            Dimensions=\"%ld\"\n"
+	  "            Precision=\"4\"\n"
+	  "            Format=\"Binary\">\n"
+	  "          %s\n"
+	  "        </DataItem>\n"
+	  "      </Attribute>\n"
+	  "    </Grid>\n"
+	  "  </Domain>\n"
+	  "</Xdmf>\n",
+	  ntri, ntri, tri_base, nvert, xyz_base, nvert, attr_base);
   if (fclose(file) != 0) {
     fprintf(stderr, "iso: fail to close '%s'\n", xdmf_path);
     exit(1);
