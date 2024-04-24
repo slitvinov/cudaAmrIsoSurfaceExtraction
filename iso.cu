@@ -422,6 +422,8 @@ positional:
   cudaMemcpy(tri, d_tri, ntri * sizeof *d_tri, cudaMemcpyDeviceToHost);
   cudaFree(d_tri);
   cudaFree(d_vert);
+  cudaFree(d_tv);
+  cudaFree(d_cnt);
 
   snprintf(xyz_path, sizeof xyz_path, "%s.xyz.raw", output_path);
   snprintf(tri_path, sizeof tri_path, "%s.tri.raw", output_path);
