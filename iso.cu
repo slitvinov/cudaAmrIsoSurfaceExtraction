@@ -76,7 +76,7 @@ struct AMR {
   __device__ AMR(const Cell *const __restrict__ cellArray, const int ncell)
       : cellArray(cellArray), ncell(ncell) {}
 
-  __device__ bool findActual(struct Cell &result, const vec3i lower,
+  __device__ bool findActual(struct Cell *result, const vec3i lower,
                              int level) {
     int f;
     const Cell *it = thrust::system::detail::generic::scalar::lower_bound(
@@ -84,20 +84,16 @@ struct AMR {
         CompareMorton());
     if (it == cellArray + ncell)
       return false;
-    const Cell found = *it;
+    *result = *it;
 
-    f = max(level, found.level);
-    if ((found.lower >> f) == (lower >> f)) {
-      result = found;
+    f = max(level, result->level);
+    if ((result->lower >> f) == (lower >> f))
       return true;
-    }
     if (it > cellArray) {
-      const Cell found = it[-1];
-      f = max(level, found.level);
-      if ((found.lower >> f) == (lower >> f)) {
-        result = found;
+      *result = it[-1];
+      f = max(level, result->level);
+      if ((result->lower >> f) == (lower >> f))
         return true;
-      }
     }
     return false;
   };
@@ -133,7 +129,7 @@ __global__ void extractTriangles(const Cell *const __restrict__ cellArray,
         lower.x = cell.lower.x + dx * ix * (1 << cell.level);
         lower.y = cell.lower.y + dy * iy * (1 << cell.level);
         lower.z = cell.lower.z + dz * iz * (1 << cell.level);
-        if (!amr.findActual(corner[iz][iy][ix], lower, cell.level))
+        if (!amr.findActual(&corner[iz][iy][ix], lower, cell.level))
           return;
         if (corner[iz][iy][ix].level < cell.level)
           return;
