@@ -52,7 +52,7 @@ m_level = max(C[3] for C in C)
 s_level = 32 - m_level
 size = 1 << m_level
 with open("in.cells",
-          "wb") as cell, open("in.scalars",
+          "wb") as cell, open("in.scalar",
                               "wb") as scalars, open("in.field",
                                                      "wb") as field:
     for x, y, z, level in C:

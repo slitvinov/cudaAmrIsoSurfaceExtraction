@@ -17,7 +17,7 @@ def indicator(x, y, z):
 
 
 with open("in.cells",
-          "wb") as cell, open("in.scalars",
+          "wb") as cell, open("in.scalar",
                               "wb") as scalars, open("in.field",
                                                      "wb") as field:
     for x in range(0, nx):
