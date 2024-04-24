@@ -66,16 +66,9 @@ static __device__ struct TriangleVertex dual(struct Cell c) {
   return v;
 }
 
-struct CompareMorton0 {
+struct CompareMorton {
   __device__ bool operator()(const Cell &a, const uint64_t b) {
     return a.morton < b;
-  }
-};
-
-struct CompareVertices {
-  __device__ bool operator()(const TriangleVertex &a,
-                             const TriangleVertex &b) const {
-    return a.position < b.position;
   }
 };
 
@@ -90,7 +83,7 @@ struct AMR {
     const Cell *const __restrict__ end = cellArray + ncell;
     const Cell *it = thrust::system::detail::generic::scalar::lower_bound(
         cellArray, cellArray + ncell, morton(lower.x, lower.y, lower.z),
-        CompareMorton0());
+        CompareMorton());
     if (it == end)
       return false;
     const Cell found = *it;
