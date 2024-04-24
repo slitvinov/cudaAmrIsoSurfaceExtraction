@@ -79,12 +79,10 @@ struct AMR {
   __device__ bool findActual(struct Cell &result, const vec3i lower,
                              int level) {
     int f;
-    const Cell *const __restrict__ begin = cellArray;
-    const Cell *const __restrict__ end = cellArray + ncell;
     const Cell *it = thrust::system::detail::generic::scalar::lower_bound(
         cellArray, cellArray + ncell, morton(lower.x, lower.y, lower.z),
         CompareMorton());
-    if (it == end)
+    if (it == cellArray + ncell)
       return false;
     const Cell found = *it;
 
@@ -93,7 +91,7 @@ struct AMR {
       result = found;
       return true;
     }
-    if (it > begin) {
+    if (it > cellArray) {
       const Cell found = it[-1];
       f = max(level, found.level);
       if ((found.lower >> f) == (lower >> f)) {
