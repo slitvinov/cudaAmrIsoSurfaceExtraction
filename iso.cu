@@ -107,7 +107,8 @@ __global__ void extract(Cell *cells,
 			Vertex * out, int size,
 			unsigned long long *cnt) {
   size_t tid;
-  int x, y, z, id, index, i, j, k, ii, wid, did, dx, dy, dz, ix, iy, iz;
+  int x, y, z, index, i, j, k, ii, wid, did, dx, dy, dz, ix, iy, iz;
+  unsigned long long id;
   int8_t *edge, *vert;
   float t;
   Vertex v0, v1, triVertex[3];
@@ -171,7 +172,7 @@ __global__ void extract(Cell *cells,
       continue;
     if (triVertex[1].position == triVertex[2].position)
       continue;
-    id = atomicAdd(cnt, 1);
+    id = atomicAdd(cnt, 1ull);
     if (id >= 3 * size)
       continue;
     for (j = 0; j < 3; j++) {
@@ -234,7 +235,7 @@ int main(int argc, char **argv) {
   float iso, *attr, xyz[3];
   int3 *tri, *d_tri;
   size_t numJobs;
-  int Verbose, maxlevel, blockSize, numBlocks;
+  int Verbose, maxlevel, numBlocks;
   long j, size;
   FILE *file, *cell_file, *scalar_file, *field_file;
   int cell[4], ox, oy, oz;
@@ -244,7 +245,9 @@ int main(int argc, char **argv) {
   struct Cell *cells, *d_cells;
   struct Vertex *d_tv, *tv, *d_vert, *vert;
   unsigned long long nvert, ntri, ncell, *d_cnt, i;
-
+  cudaError_t code;
+  enum {blockSize = 512};
+  
   Verbose = 0;
   while (*++argv != NULL && argv[0][0] == '-')
     switch (argv[0][1]) {
@@ -361,13 +364,16 @@ positional:
   cudaMalloc(&d_cells, ncell * sizeof *d_cells);
   cudaMemcpy(d_cells, cells, ncell * sizeof *d_cells, cudaMemcpyHostToDevice);
   cudaMalloc(&d_cnt, sizeof *d_cnt);
-  cudaMemset(&d_cnt, 0, sizeof *d_cnt);
+  cudaMemset(d_cnt, 0, sizeof *d_cnt);
   numJobs = 8 * ncell;
-  blockSize = 512;
   numBlocks = (numJobs + blockSize - 1) / blockSize;
   extract<<<numBlocks, blockSize>>>(d_cells, ncell, maxlevel, iso,
 					     NULL, 0, d_cnt);
   cudaDeviceSynchronize();
+  if ((code = cudaPeekAtLastError()) != cudaSuccess) {
+    fprintf(stderr, "iso: error: %s\n", cudaGetErrorString(code));
+    exit(1);
+  }
   cudaMemcpy(&ntri, d_cnt, sizeof *d_cnt, cudaMemcpyDeviceToHost);
   if (Verbose)
     fprintf(stderr, "iso: ntri: %llu\n", ntri);
@@ -381,7 +387,10 @@ positional:
 					     d_tv, 3 * ntri, d_cnt);
   cudaDeviceSynchronize();
   cudaFree(d_cells);
-  tv = (struct Vertex *)malloc(3 * ntri * sizeof *tv);
+  if ((tv = (struct Vertex *)malloc(3 * ntri * sizeof *tv)) == NULL) {
+    fprintf(stderr, "iso: error: malloc failed\n");
+    exit(1);
+  }
   cudaMemcpy(tv, d_tv, 3 * ntri * sizeof *tv, cudaMemcpyDeviceToHost);
   qsort(tv, 3 * ntri, sizeof *tv, comp_vert);
   cudaMemcpy(d_tv, tv, 3 * ntri * sizeof *tv, cudaMemcpyHostToDevice);
