@@ -235,7 +235,7 @@ int main(int argc, char **argv) {
   int3 *tri, *d_tri;
   size_t numJobs;
   int Verbose, maxlevel, blockSize, numBlocks;
-  long i, j, ncell, size;
+  long j, size;
   FILE *file, *cell_file, *scalar_file, *field_file;
   int cell[4], ox, oy, oz;
   char attr_path[FILENAME_MAX], xyz_path[FILENAME_MAX], tri_path[FILENAME_MAX],
@@ -243,7 +243,7 @@ int main(int argc, char **argv) {
       *scalar_path, *field_path, *output_path, *end;
   struct Cell *cells, *d_cells;
   struct TriangleVertex *d_tv, *tv, *d_vert, *vert;
-  unsigned long long nvert, ntri, *d_cnt;
+  unsigned long long nvert, ntri, ncell, *d_cnt, i;
 
   Verbose = 0;
   while (*++argv != NULL && argv[0][0] == '-')
@@ -343,7 +343,7 @@ positional:
   }
 
   if (Verbose)
-    fprintf(stderr, "iso: ncell, maxlevel, origin: %ld %d [%d %d %d]\n", ncell,
+    fprintf(stderr, "iso: ncell, maxlevel, origin: %llu %d [%d %d %d]\n", ncell,
             maxlevel, ox, oy, oz);
   if (fclose(cell_file) != 0) {
     fprintf(stderr, "iso: error: fail to close '%s'\n", cell_path);
@@ -370,7 +370,7 @@ positional:
   cudaDeviceSynchronize();
   cudaMemcpy(&ntri, d_cnt, sizeof *d_cnt, cudaMemcpyDeviceToHost);
   if (Verbose)
-    fprintf(stderr, "iso: ntri: %ld\n", ntri);
+    fprintf(stderr, "iso: ntri: %llu\n", ntri);
   cudaMalloc(&d_tv, 3 * ntri * sizeof *d_tv);
   cudaMemset(d_cnt, 0, sizeof *d_cnt);
   extractTriangles<<<numBlocks, blockSize>>>(d_cells, ncell, maxlevel, iso,
@@ -390,7 +390,7 @@ positional:
   cudaDeviceSynchronize();
   cudaMemcpy(&nvert, d_cnt, sizeof *d_cnt, cudaMemcpyDeviceToHost);
   if (Verbose)
-    fprintf(stderr, "iso: nvert: %ld\n", nvert);
+    fprintf(stderr, "iso: nvert: %llu\n", nvert);
   cudaMalloc(&d_tri, ntri * sizeof *d_tri);
   cudaMalloc(&d_vert, nvert * sizeof *d_vert);
   cudaMemset(d_cnt, 0, sizeof *d_cnt);
@@ -489,9 +489,9 @@ positional:
           "    <Grid>\n"
           "      <Topology\n"
           "         TopologyType=\"Triangle\"\n"
-          "         Dimensions=\"%ld\">\n"
+          "         Dimensions=\"%llu\">\n"
           "        <DataItem\n"
-          "            Dimensions=\"%ld 3\"\n"
+          "            Dimensions=\"%llu 3\"\n"
           "            NumberType=\"Int\"\n"
           "            Format=\"Binary\">\n"
           "          %s\n"
@@ -499,7 +499,7 @@ positional:
           "      </Topology>\n"
           "      <Geometry>\n"
           "        <DataItem\n"
-          "            Dimensions=\"%ld 3\"\n"
+          "            Dimensions=\"%llu 3\"\n"
           "            Precision=\"4\"\n"
           "            Format=\"Binary\">\n"
           "          %s\n"
@@ -508,7 +508,7 @@ positional:
           "      <Attribute\n"
           "          Name=\"u\">\n"
           "        <DataItem\n"
-          "            Dimensions=\"%ld\"\n"
+          "            Dimensions=\"%llu\"\n"
           "            Precision=\"4\"\n"
           "            Format=\"Binary\">\n"
           "          %s\n"
