@@ -531,6 +531,7 @@ positional:
 	  "        </DataItem>\n"
 	  "      </Geometry>\n"
 	  "      <Attribute\n"
+	  "          Center=\"Node\"\n"
 	  "          Name=\"u\">\n"
 	  "        <DataItem\n"
 	  "            Dimensions=\"%llu\"\n"
@@ -544,7 +545,7 @@ positional:
 	  "</Xdmf>\n",
 	  ntri, ntri, tri_base, nvert, xyz_base, nvert, attr_base);
   if (fclose(file) != 0) {
-    fprintf(stderr, "iso: fail to close '%s'\n", xdmf_path);
+    fprintf(stderr, "iso: error: fail to close '%s'\n", xdmf_path);
     exit(1);
   }
 }
