@@ -73,23 +73,23 @@ struct CompareMorton {
 };
 
 struct AMR {
-  __device__ AMR(const Cell *const __restrict__ cellArray, const int ncell)
-      : cellArray(cellArray), ncell(ncell) {}
+  __device__ AMR(Cell *cells, unsigned long long ncell)
+      : cells(cells), ncell(ncell) {}
 
   __device__ bool findActual(struct Cell *result, const vec3i lower,
 			     int level) {
     int f;
     const Cell *it = thrust::system::detail::generic::scalar::lower_bound(
-	cellArray, cellArray + ncell, morton(lower.x, lower.y, lower.z),
+	cells, cells + ncell, morton(lower.x, lower.y, lower.z),
 	CompareMorton());
-    if (it == cellArray + ncell)
+    if (it == cells + ncell)
       return false;
     *result = *it;
 
     f = max(level, result->level);
     if ((result->lower >> f) == (lower >> f))
       return true;
-    if (it > cellArray) {
+    if (it > cells) {
       *result = it[-1];
       f = max(level, result->level);
       if ((result->lower >> f) == (lower >> f))
@@ -98,12 +98,12 @@ struct AMR {
     return false;
   };
 
-  const Cell *const __restrict__ cellArray;
-  const int ncell;
+  Cell *cells;
+  unsigned long long ncell;
 };
 
-__global__ void extract(Cell *cellArray,
-			int ncell, int maxlevel, float iso,
+__global__ void extract(Cell *cells,
+			unsigned long long ncell, int maxlevel, float iso,
 			Vertex * out, int size,
 			unsigned long long *cnt) {
   size_t tid;
@@ -113,13 +113,13 @@ __global__ void extract(Cell *cellArray,
   Vertex v0, v1, triVertex[3];
   vec3i lower;
   Cell corner[2][2][2], cell;
-  AMR amr(cellArray, ncell);
+  AMR amr(cells, ncell);
   tid = threadIdx.x + size_t(blockDim.x) * blockIdx.x;
   wid = tid / 8;
   if (wid >= ncell)
     return;
   did = tid % 8;
-  cell = cellArray[wid];
+  cell = cells[wid];
   dz = (did & 4) ? 1 : -1;
   dy = (did & 2) ? 1 : -1;
   dx = (did & 1) ? 1 : -1;
