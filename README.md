@@ -13,6 +13,14 @@ arXiv preprint arXiv:2004.08475 (2020).
 ```
 $ make
 nvcc -O2 -g -Xcompiler '' iso.cu -o iso
+```
+
+or
+```
+$ make 'NVCCFLAGS = -arch=native' -B
+nvcc -arch=native -Xcompiler '' iso.cu -o iso
+```
+
 $ python gen.py
 gen.py: in.cell in.scalar in.field
 $ ./iso -v in.cells in.scalar in.field 0 mesh
