@@ -35,7 +35,7 @@ struct vec3f {
   float x, y, z;
 };
 
-struct TriangleVertex {
+struct Vertex {
   vec3f position;
   float scalar, field;
   uint32_t id;
@@ -56,8 +56,8 @@ struct Cell {
   float scalar, field;
 };
 
-static __device__ struct TriangleVertex dual(struct Cell c) {
-  struct TriangleVertex v;
+static __device__ struct Vertex dual(struct Cell c) {
+  struct Vertex v;
   v.position.x = c.lower.x + 0.5 * (1 << c.level);
   v.position.y = c.lower.y + 0.5 * (1 << c.level);
   v.position.z = c.lower.z + 0.5 * (1 << c.level);
@@ -102,15 +102,15 @@ struct AMR {
   const int ncell;
 };
 
-__global__ void extract(const Cell *const __restrict__ cellArray,
-				 int ncell, int maxlevel, float iso,
-				 TriangleVertex *__restrict__ out, int size,
-				 unsigned long long *cnt) {
+__global__ void extract(Cell *cellArray,
+			int ncell, int maxlevel, float iso,
+			Vertex * out, int size,
+			unsigned long long *cnt) {
   size_t tid;
   int x, y, z, id, index, i, j, k, ii, wid, did, dx, dy, dz, ix, iy, iz;
   int8_t *edge, *vert;
   float t;
-  TriangleVertex v0, v1, triVertex[3];
+  Vertex v0, v1, triVertex[3];
   vec3i lower;
   Cell corner[2][2][2], cell;
   AMR amr(cellArray, ncell);
@@ -140,7 +140,7 @@ __global__ void extract(const Cell *const __restrict__ cellArray,
   x = dx == -1;
   y = dy == -1;
   z = dz == -1;
-  TriangleVertex vertex[8] = {
+  Vertex vertex[8] = {
       dual(corner[0 + z][0 + y][0 + x]), dual(corner[0 + z][0 + y][1 - x]),
       dual(corner[0 + z][1 - y][1 - x]), dual(corner[0 + z][1 - y][0 + x]),
       dual(corner[1 - z][0 + y][0 + x]), dual(corner[1 - z][0 + y][1 - x]),
@@ -188,10 +188,10 @@ __global__ void extract(const Cell *const __restrict__ cellArray,
 
 __global__ void
 createVertexArray(unsigned long long *cnt,
-		  const TriangleVertex *const __restrict__ vertices, int nvert,
-		  TriangleVertex *vert, int size, int3 *index) {
+		  const Vertex *const __restrict__ vertices, int nvert,
+		  Vertex *vert, int size, int3 *index) {
   int i, j, k, l, id, tid, *tri;
-  TriangleVertex vertex;
+  Vertex vertex;
   tid = blockIdx.x * blockDim.x + threadIdx.x;
   if (tid >= nvert)
     return;
@@ -224,9 +224,9 @@ static int comp(const void *av, const void *bv) {
 }
 
 static int comp_vert(const void *av, const void *bv) {
-  struct TriangleVertex *a, *b;
-  a = (struct TriangleVertex *)av;
-  b = (struct TriangleVertex *)bv;
+  struct Vertex *a, *b;
+  a = (struct Vertex *)av;
+  b = (struct Vertex *)bv;
   return a->position < b->position;
 }
 
@@ -242,7 +242,7 @@ int main(int argc, char **argv) {
       xdmf_path[FILENAME_MAX], *attr_base, *xyz_base, *tri_base, *cell_path,
       *scalar_path, *field_path, *output_path, *end;
   struct Cell *cells, *d_cells;
-  struct TriangleVertex *d_tv, *tv, *d_vert, *vert;
+  struct Vertex *d_tv, *tv, *d_vert, *vert;
   unsigned long long nvert, ntri, ncell, *d_cnt, i;
 
   Verbose = 0;
@@ -381,7 +381,7 @@ positional:
 					     d_tv, 3 * ntri, d_cnt);
   cudaDeviceSynchronize();
   cudaFree(d_cells);
-  tv = (struct TriangleVertex *)malloc(3 * ntri * sizeof *tv);
+  tv = (struct Vertex *)malloc(3 * ntri * sizeof *tv);
   cudaMemcpy(tv, d_tv, 3 * ntri * sizeof *tv, cudaMemcpyDeviceToHost);
   qsort(tv, 3 * ntri, sizeof *tv, comp_vert);
   cudaMemcpy(d_tv, tv, 3 * ntri * sizeof *tv, cudaMemcpyHostToDevice);
@@ -401,7 +401,7 @@ positional:
   createVertexArray<<<numBlocks, blockSize>>>(d_cnt, d_tv, 3 * ntri, d_vert,
 					      nvert, d_tri);
   cudaDeviceSynchronize();
-  if ((vert = (TriangleVertex *)malloc(nvert * sizeof *vert)) == NULL) {
+  if ((vert = (Vertex *)malloc(nvert * sizeof *vert)) == NULL) {
     fprintf(stderr, "iso: error: malloc failed\n");
     exit(1);
   }
