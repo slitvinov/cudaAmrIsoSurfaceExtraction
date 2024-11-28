@@ -1,4 +1,5 @@
 import struct
+import sys
 
 nx = 10
 ny = 10
@@ -20,10 +21,11 @@ with open("in.cells",
           "wb") as cell, open("in.scalar",
                               "wb") as scalars, open("in.field",
                                                      "wb") as field:
-    for x in range(0, nx):
-        for y in range(0, ny):
-            for z in range(0, nz):
+    for x in range(nx):
+        for y in range(ny):
+            for z in range(nz):
                 cell.write(struct.pack("iii", x, y, z))
                 cell.write(struct.pack("i", level))
                 scalars.write(struct.pack("f", indicator(x, y, z)))
                 field.write(struct.pack("f", x))
+sys.stderr.write("gen.py: in.cell in.scalar in.field\n")
