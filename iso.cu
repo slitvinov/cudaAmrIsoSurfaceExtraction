@@ -252,7 +252,19 @@ int main(int argc, char **argv) {
   while (*++argv != NULL && argv[0][0] == '-')
     switch (argv[0][1]) {
     case 'h':
-      fprintf(stderr, "Usage: iso [-v] in.cells in.scalar in.field iso mesh\n");
+      fprintf(stderr,
+              "Usage: iso [-v] in.cells in.scalar in.field iso mesh\n\n"
+              "Example:\n"
+              "  iso -v data.cells data.scalar data.field 0.5 output\n\n"
+              "Arguments:\n"
+              "  in.cells   Binary file describing the AMR cell structure.\n"
+              "  in.scalar  Binary file with scalar field values.\n"
+              "  in.field   Binary file with additional field values.\n"
+              "  iso        Iso-surface value to extract (e.g., 0.5).\n"
+              "  mesh       Output file name prefix for generated mesh.\n\n"
+              "Options:\n"
+              "  -v         Enable verbose output.\n"
+              "  -h         Show this help message and exit.\n");
       exit(1);
     case 'v':
       Verbose = 1;
