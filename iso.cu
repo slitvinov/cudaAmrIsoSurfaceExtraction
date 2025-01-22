@@ -26,7 +26,7 @@ static __device__ __host__ long leftShift3(long x) {
 
 static __device__ __host__ long morton(int x, int y, int z) {
   return (leftShift3(uint32_t(z)) << 2) | (leftShift3(uint32_t(y)) << 1) |
-	 (leftShift3(uint32_t(x)) << 0);
+         (leftShift3(uint32_t(x)) << 0);
 }
 
 struct vec3f {
@@ -46,7 +46,7 @@ static __device__ bool operator==(const vec3f &a, const vec3f &b) {
 }
 static __device__ __host__ bool operator<(const vec3f &a, const vec3f &b) {
   return (a.x < b.x) ||
-	 ((a.x == b.x) && ((a.y < b.y) || (a.y == b.y) && (a.z < b.z)));
+         ((a.x == b.x) && ((a.y < b.y) || (a.y == b.y) && (a.z < b.z)));
 }
 
 struct Cell {
@@ -77,11 +77,11 @@ struct AMR {
       : cells(cells), ncell(ncell) {}
 
   __device__ bool findActual(struct Cell *result, const vec3i lower,
-			     int level) {
+                             int level) {
     int f;
     const Cell *it = thrust::system::detail::generic::scalar::lower_bound(
-	cells, cells + ncell, morton(lower.x, lower.y, lower.z),
-	CompareMorton());
+        cells, cells + ncell, morton(lower.x, lower.y, lower.z),
+        CompareMorton());
     if (it == cells + ncell)
       return false;
     *result = *it;
@@ -93,7 +93,7 @@ struct AMR {
       *result = it[-1];
       f = max(level, result->level);
       if ((result->lower >> f) == (lower >> f))
-	return true;
+        return true;
     }
     return false;
   };
@@ -102,10 +102,9 @@ struct AMR {
   unsigned long long ncell;
 };
 
-__global__ void extract(Cell *cells,
-			unsigned long long ncell, int maxlevel, float iso,
-			Vertex * out, int size,
-			unsigned long long *cnt) {
+__global__ void extract(Cell *cells, unsigned long long ncell, int maxlevel,
+                        float iso, Vertex *out, int size,
+                        unsigned long long *cnt) {
   size_t tid;
   int x, y, z, index, i, j, k, ii, wid, did, dx, dy, dz, ix, iy, iz;
   unsigned long long id;
@@ -127,16 +126,16 @@ __global__ void extract(Cell *cells,
   for (iz = 0; iz < 2; iz++)
     for (iy = 0; iy < 2; iy++)
       for (ix = 0; ix < 2; ix++) {
-	lower.x = cell.lower.x + dx * ix * (1 << cell.level);
-	lower.y = cell.lower.y + dy * iy * (1 << cell.level);
-	lower.z = cell.lower.z + dz * iz * (1 << cell.level);
-	if (!amr.findActual(&corner[iz][iy][ix], lower, cell.level))
-	  return;
-	if (corner[iz][iy][ix].level < cell.level)
-	  return;
-	if (corner[iz][iy][ix].level == cell.level &&
-	    corner[iz][iy][ix].lower < cell.lower)
-	  return;
+        lower.x = cell.lower.x + dx * ix * (1 << cell.level);
+        lower.y = cell.lower.y + dy * iy * (1 << cell.level);
+        lower.z = cell.lower.z + dz * iz * (1 << cell.level);
+        if (!amr.findActual(&corner[iz][iy][ix], lower, cell.level))
+          return;
+        if (corner[iz][iy][ix].level < cell.level)
+          return;
+        if (corner[iz][iy][ix].level == cell.level &&
+            corner[iz][iy][ix].lower < cell.lower)
+          return;
       }
   x = dx == -1;
   y = dy == -1;
@@ -187,10 +186,10 @@ __global__ void extract(Cell *cells,
   }
 }
 
-__global__ void
-createVertexArray(unsigned long long *cnt,
-		  const Vertex *const __restrict__ vertices, int nvert,
-		  Vertex *vert, int size, int3 *index) {
+__global__ void createVertexArray(unsigned long long *cnt,
+                                  const Vertex *const __restrict__ vertices,
+                                  int nvert, Vertex *vert, int size,
+                                  int3 *index) {
   int i, j, k, l, id, tid, *tri;
   Vertex vertex;
   tid = blockIdx.x * blockDim.x + threadIdx.x;
@@ -232,13 +231,14 @@ static int comp_vert(const void *av, const void *bv) {
 }
 
 int main(int argc, char **argv) {
+  double X0, Y0, Z0, L;
   float iso, *attr, xyz[3];
   int3 *tri, *d_tri;
   size_t numJobs;
   int Verbose, maxlevel, numBlocks;
   long j, size;
   FILE *file, *cell_file, *scalar_file, *field_file;
-  int cell[4], ox, oy, oz;
+  int cell[4], ox, oy, oz, minlevel, ScaleFlag;
   char attr_path[FILENAME_MAX], xyz_path[FILENAME_MAX], tri_path[FILENAME_MAX],
       xdmf_path[FILENAME_MAX], *attr_base, *xyz_base, *tri_base, *cell_path,
       *scalar_path, *field_path, *output_path, *end;
@@ -246,26 +246,68 @@ int main(int argc, char **argv) {
   struct Vertex *d_tv, *tv, *d_vert, *vert;
   unsigned long long nvert, ntri, ncell, *d_cnt, i;
   cudaError_t code;
-  enum {blockSize = 512};
-  
+  enum { blockSize = 512 };
+
   Verbose = 0;
+  ScaleFlag = 0;
   while (*++argv != NULL && argv[0][0] == '-')
     switch (argv[0][1]) {
     case 'h':
-      fprintf(stderr,
-              "Usage: iso [-v] in.cells in.scalar in.field iso mesh\n\n"
-              "Example:\n"
-              "  iso -v data.cells data.scalar data.field 0.5 output\n\n"
-              "Arguments:\n"
-              "  in.cells   Binary file describing the AMR cell structure.\n"
-              "  in.scalar  Binary file with scalar field values.\n"
-              "  in.field   Binary file with additional field values.\n"
-              "  iso        Iso-surface value to extract (e.g., 0.5).\n"
-              "  mesh       Output file name prefix for generated mesh.\n\n"
-              "Options:\n"
-              "  -v         Enable verbose output.\n"
-              "  -h         Show this help message and exit.\n");
+      fprintf(
+          stderr,
+          "Usage: iso [-v] [-s X0 Y0 Z0 L minlevel] in.cells in.scalar "
+          "in.field iso mesh\n\n"
+          "Example:\n"
+          "  iso -v data.cells data.scalar data.field 0.5 output\n\n"
+          "Arguments:\n"
+          "  in.cells   Binary file describing the AMR cell structure.\n"
+          "  in.scalar  Binary file with scalar field values.\n"
+          "  in.field   Binary file with additional field values.\n"
+          "  iso        Iso-surface value to extract (e.g., 0.5).\n"
+          "  mesh       Output file name prefix for generated mesh.\n\n"
+          "Options:\n"
+          "  -s         Domain center, size, and minimum level for rescaling\n"
+          "  -v         Enable verbose output.\n"
+          "  -h         Show this help message and exit.\n");
       exit(1);
+    case 'w':
+      argv++;
+      if (argv[0] == NULL || argv[1] == NULL || argv[2] == NULL ||
+          argv[3] == NULL || argv[3] == NULL) {
+        fprintf(stderr, "iso: error: -w needs five arguments\n");
+        exit(1);
+      }
+      ScaleFlag = 1;
+      X0 = strtod(*argv, &end);
+      if (*end != '\0') {
+        fprintf(stderr, "iso: error: '%s' is not a double\n", *argv);
+        exit(1);
+      }
+      argv++;
+      Y0 = strtod(*argv, &end);
+      if (*end != '\0') {
+        fprintf(stderr, "iso: error: '%s' is not a double\n", *argv);
+        exit(1);
+      }
+      argv++;
+      Z0 = strtod(*argv, &end);
+      if (*end != '\0') {
+        fprintf(stderr, "iso: error: '%s' is not a double\n", *argv);
+        exit(1);
+      }
+      argv++;
+      L = strtod(*argv, &end);
+      if (*end != '\0') {
+        fprintf(stderr, "iso: error: '%s' is not a double\n", *argv);
+        exit(1);
+      }
+      argv++;
+      minlevel = strtol(*argv, &end, 10);
+      if (*end != '\0') {
+        fprintf(stderr, "iso: error: '%s' is not an integer\n", *argv);
+        exit(1);
+      }
+      break;
     case 'v':
       Verbose = 1;
       break;
@@ -354,12 +396,12 @@ positional:
     cells[i].lower.y -= oy;
     cells[i].lower.z -= oz;
     cells[i].morton =
-	morton(cells[i].lower.x, cells[i].lower.y, cells[i].lower.z);
+        morton(cells[i].lower.x, cells[i].lower.y, cells[i].lower.z);
   }
 
   if (Verbose)
     fprintf(stderr, "iso: ncell, maxlevel, origin: %llu %d [%d %d %d]\n", ncell,
-	    maxlevel, ox, oy, oz);
+            maxlevel, ox, oy, oz);
   if (fclose(cell_file) != 0) {
     fprintf(stderr, "iso: error: fail to close '%s'\n", cell_path);
     exit(1);
@@ -379,8 +421,8 @@ positional:
   cudaMemset(d_cnt, 0, sizeof *d_cnt);
   numJobs = 8 * ncell;
   numBlocks = (numJobs + blockSize - 1) / blockSize;
-  extract<<<numBlocks, blockSize>>>(d_cells, ncell, maxlevel, iso,
-					     NULL, 0, d_cnt);
+  extract<<<numBlocks, blockSize>>>(d_cells, ncell, maxlevel, iso, NULL, 0,
+                                    d_cnt);
   cudaDeviceSynchronize();
   if ((code = cudaPeekAtLastError()) != cudaSuccess) {
     fprintf(stderr, "iso: error: %s\n", cudaGetErrorString(code));
@@ -395,8 +437,8 @@ positional:
   }
   cudaMalloc(&d_tv, 3 * ntri * sizeof *d_tv);
   cudaMemset(d_cnt, 0, sizeof *d_cnt);
-  extract<<<numBlocks, blockSize>>>(d_cells, ncell, maxlevel, iso,
-					     d_tv, 3 * ntri, d_cnt);
+  extract<<<numBlocks, blockSize>>>(d_cells, ncell, maxlevel, iso, d_tv,
+                                    3 * ntri, d_cnt);
   cudaDeviceSynchronize();
   cudaFree(d_cells);
   if ((tv = (struct Vertex *)malloc(3 * ntri * sizeof *tv)) == NULL) {
@@ -411,7 +453,7 @@ positional:
   numJobs = 3 * ntri;
   numBlocks = (numJobs + blockSize - 1) / blockSize;
   createVertexArray<<<numBlocks, blockSize>>>(d_cnt, d_tv, 3 * ntri, NULL, 0,
-					      NULL);
+                                              NULL);
   cudaDeviceSynchronize();
   cudaMemcpy(&nvert, d_cnt, sizeof *d_cnt, cudaMemcpyDeviceToHost);
   if (Verbose)
@@ -420,7 +462,7 @@ positional:
   cudaMalloc(&d_vert, nvert * sizeof *d_vert);
   cudaMemset(d_cnt, 0, sizeof *d_cnt);
   createVertexArray<<<numBlocks, blockSize>>>(d_cnt, d_tv, 3 * ntri, d_vert,
-					      nvert, d_tri);
+                                              nvert, d_tri);
   cudaDeviceSynchronize();
   if ((vert = (Vertex *)malloc(nvert * sizeof *vert)) == NULL) {
     fprintf(stderr, "iso: error: malloc failed\n");
@@ -455,13 +497,27 @@ positional:
     fprintf(stderr, "iso: error: fail to open '%s'\n", xyz_path);
     exit(1);
   }
-  for (i = 0; i < nvert; i++) {
-    xyz[0] = vert[i].position.x;
-    xyz[1] = vert[i].position.y;
-    xyz[2] = vert[i].position.z;
-    if (fwrite(xyz, sizeof xyz, 1, file) != 1) {
-      fprintf(stderr, "iso: error: fail to write '%s'\n", xyz_path);
-      exit(1);
+  if (ScaleFlag == 0) {
+    for (i = 0; i < nvert; i++) {
+      xyz[0] = vert[i].position.x;
+      xyz[1] = vert[i].position.y;
+      xyz[2] = vert[i].position.z;
+      if (fwrite(xyz, sizeof xyz, 1, file) != 1) {
+        fprintf(stderr, "iso: error: fail to write '%s'\n", xyz_path);
+        exit(1);
+      }
+    }
+  } else {
+    double h;
+    h = L / (1 << minlevel);
+    for (i = 0; i < nvert; i++) {
+      xyz[0] = vert[i].position.x * h + X0;
+      xyz[1] = vert[i].position.y * h + Y0;
+      xyz[2] = vert[i].position.z * h + Z0;
+      if (fwrite(xyz, sizeof xyz, 1, file) != 1) {
+        fprintf(stderr, "iso: error: fail to write '%s'\n", xyz_path);
+        exit(1);
+      }
     }
   }
   if (fclose(file) != 0) {
@@ -508,42 +564,42 @@ positional:
     exit(1);
   }
   fprintf(file,
-	  "<Xdmf\n"
-	  "    Version=\"2\">\n"
-	  "  <Domain>\n"
-	  "    <Grid>\n"
-	  "      <Topology\n"
-	  "         TopologyType=\"Triangle\"\n"
-	  "         Dimensions=\"%llu\">\n"
-	  "        <DataItem\n"
-	  "            Dimensions=\"%llu 3\"\n"
-	  "            NumberType=\"Int\"\n"
-	  "            Format=\"Binary\">\n"
-	  "          %s\n"
-	  "        </DataItem>\n"
-	  "      </Topology>\n"
-	  "      <Geometry>\n"
-	  "        <DataItem\n"
-	  "            Dimensions=\"%llu 3\"\n"
-	  "            Precision=\"4\"\n"
-	  "            Format=\"Binary\">\n"
-	  "          %s\n"
-	  "        </DataItem>\n"
-	  "      </Geometry>\n"
-	  "      <Attribute\n"
-	  "          Center=\"Node\"\n"
-	  "          Name=\"u\">\n"
-	  "        <DataItem\n"
-	  "            Dimensions=\"%llu\"\n"
-	  "            Precision=\"4\"\n"
-	  "            Format=\"Binary\">\n"
-	  "          %s\n"
-	  "        </DataItem>\n"
-	  "      </Attribute>\n"
-	  "    </Grid>\n"
-	  "  </Domain>\n"
-	  "</Xdmf>\n",
-	  ntri, ntri, tri_base, nvert, xyz_base, nvert, attr_base);
+          "<Xdmf\n"
+          "    Version=\"2\">\n"
+          "  <Domain>\n"
+          "    <Grid>\n"
+          "      <Topology\n"
+          "         TopologyType=\"Triangle\"\n"
+          "         Dimensions=\"%llu\">\n"
+          "        <DataItem\n"
+          "            Dimensions=\"%llu 3\"\n"
+          "            NumberType=\"Int\"\n"
+          "            Format=\"Binary\">\n"
+          "          %s\n"
+          "        </DataItem>\n"
+          "      </Topology>\n"
+          "      <Geometry>\n"
+          "        <DataItem\n"
+          "            Dimensions=\"%llu 3\"\n"
+          "            Precision=\"4\"\n"
+          "            Format=\"Binary\">\n"
+          "          %s\n"
+          "        </DataItem>\n"
+          "      </Geometry>\n"
+          "      <Attribute\n"
+          "          Center=\"Node\"\n"
+          "          Name=\"u\">\n"
+          "        <DataItem\n"
+          "            Dimensions=\"%llu\"\n"
+          "            Precision=\"4\"\n"
+          "            Format=\"Binary\">\n"
+          "          %s\n"
+          "        </DataItem>\n"
+          "      </Attribute>\n"
+          "    </Grid>\n"
+          "  </Domain>\n"
+          "</Xdmf>\n",
+          ntri, ntri, tri_base, nvert, xyz_base, nvert, attr_base);
   if (fclose(file) != 0) {
     fprintf(stderr, "iso: error: fail to close '%s'\n", xdmf_path);
     exit(1);
