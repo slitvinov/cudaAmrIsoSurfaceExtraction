@@ -270,7 +270,7 @@ int main(int argc, char **argv) {
           "  -v         Enable verbose output.\n"
           "  -h         Show this help message and exit.\n");
       exit(1);
-    case 'w':
+    case 's':
       argv++;
       if (argv[0] == NULL || argv[1] == NULL || argv[2] == NULL ||
           argv[3] == NULL || argv[3] == NULL) {
