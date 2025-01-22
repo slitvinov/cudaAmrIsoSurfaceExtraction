@@ -510,6 +510,9 @@ positional:
   } else {
     double h;
     h = L / (1 << minlevel);
+    if (Verbose)
+      fprintf(stderr, "iso: X0 Y0 Z0 L minlevel: [%g %g %g] %g %d\n", X0, Y0,
+              Z0, L, minlevel);
     for (i = 0; i < nvert; i++) {
       xyz[0] = vert[i].position.x * h + X0;
       xyz[1] = vert[i].position.y * h + Y0;
