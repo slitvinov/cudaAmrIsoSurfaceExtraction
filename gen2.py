@@ -1,4 +1,5 @@
 import struct
+import sys
 
 
 def indicator(x, y, z):
@@ -65,3 +66,4 @@ with open("in.cells",
         w = (z + delta) / L
         scalars.write(struct.pack("f", indicator(u, v, w)))
         field.write(struct.pack("f", u))
+sys.stderr.write("gen2.py: write in.cell in.scalar in.field\n")

@@ -11,12 +11,20 @@ $ make 'NVCCFLAGS = -arch=native' -B
 nvcc -arch=native -Xcompiler '' iso.cu -o iso
 ```
 
-Generate input data
+Generate input data. For one level mesh.
 
 ```
 $ python gen.py
 gen.py: in.cell in.scalar in.field
 $ ./iso -v in.cells in.scalar in.field 0 mesh
+```
+
+For multiresoltuon mesh:
+
+```
+$ python gen2.py
+gen2.py: write in.cell in.scalar in.field
+$ ./iso -v in.cells in.scalar in.field 0 mesh2
 ```
 
 # Reference
