@@ -22,7 +22,7 @@ iso: ntri: 128
 iso: nvert: 66
 ```
 
-<img src="img/img/gen.png" width=300 align="right">
+![gen.py data](img/gen.png)
 
 For multiresoltuon mesh:
 
