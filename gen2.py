@@ -1,5 +1,6 @@
 import struct
 import sys
+import collections
 
 
 def indicator(x, y, z):
@@ -50,6 +51,7 @@ traverse(0, 0, 0, 0)
 m_level = max(C[3] for C in C)
 s_level = 32 - m_level
 size = 1 << m_level
+stat = collections.Counter()
 with open("in.cells",
           "wb") as cell, open("in.scalar",
                               "wb") as scalars, open("in.field",
@@ -58,11 +60,12 @@ with open("in.cells",
         cell.write(struct.pack("iii", x >> s_level, y >> s_level,
                                z >> s_level))
         cell.write(struct.pack("i", m_level - level))
+        stat[m_level - level] += 1
         delta = 1 << (32 - level - 1)
         u = (x + delta) / L
         v = (y + delta) / L
         w = (z + delta) / L
         scalars.write(struct.pack("f", indicator(u, v, w)))
-        print(u)
         field.write(struct.pack("f", u))
 sys.stderr.write("gen2.py: write in.cell in.scalar in.field\n")
+print(stat)
