@@ -17,6 +17,9 @@ Generate input data. For one level mesh.
 $ python gen.py
 gen.py: in.cell in.scalar in.field
 $ ./iso -v in.cells in.scalar in.field 0 mesh
+iso: ncell, maxlevel, origin: 1000 0 [0 0 0]
+iso: ntri: 128
+iso: nvert: 66
 ```
 
 For multiresoltuon mesh:
@@ -25,6 +28,9 @@ For multiresoltuon mesh:
 $ python gen2.py
 gen2.py: write in.cell in.scalar in.field
 $ ./iso -v in.cells in.scalar in.field 0 mesh2
+iso: ncell, maxlevel, origin: 7792 4 [0 0 0]
+iso: ntri: 6460
+iso: nvert: 3232
 ```
 
 Usage message
@@ -46,6 +52,11 @@ Options:
   -s         Domain center, size, and minimum level for rescaling
   -v         Enable verbose output.
   -h         Show this help message and exit.
+```
+
+Run on FAS RC
+```
+srun -p gpu_test --gpus 1 --mem 2Gb ./iso -v in.cells in.scalar in.field 0 mesh
 ```
 
 # Reference

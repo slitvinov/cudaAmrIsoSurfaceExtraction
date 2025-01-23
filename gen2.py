@@ -28,8 +28,6 @@ def refinep(x, y, z, delta):
         v = (y + delta * dy) / L
         w = (z + delta * dz) / L
         sign = indicator(u, v, w) > 0
-        if sign < 0:
-            print(sign)
         if seen != None and sign != seen:
             return True
         else:
