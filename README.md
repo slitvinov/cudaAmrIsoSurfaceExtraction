@@ -21,8 +21,7 @@ iso: ncell, maxlevel, origin: 1000 0 [0 0 0]
 iso: ntri: 128
 iso: nvert: 66
 ```
-
-![gen.py data](img/gen.png)
+![plot from gen.py data](img/gen.png)
 
 For multiresoltuon mesh:
 
@@ -34,6 +33,8 @@ iso: ncell, maxlevel, origin: 7792 4 [0 0 0]
 iso: ntri: 6460
 iso: nvert: 3232
 ```
+
+![plot from gen2.py data](img/gen2.png)
 
 Usage message
 ```
