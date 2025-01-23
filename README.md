@@ -27,6 +27,27 @@ gen2.py: write in.cell in.scalar in.field
 $ ./iso -v in.cells in.scalar in.field 0 mesh2
 ```
 
+Usage message
+```
+$ ./iso -h
+Usage: iso [-v] [-s X0 Y0 Z0 L minlevel] in.cells in.scalar in.field iso mesh
+
+Example:
+  iso -v data.cells data.scalar data.field 0.5 output
+
+Arguments:
+  in.cells   Binary file describing the AMR cell structure.
+  in.scalar  Binary file with scalar field values.
+  in.field   Binary file with additional field values.
+  iso        Iso-surface value to extract (e.g., 0.5).
+  mesh       Output file name prefix for generated mesh.
+
+Options:
+  -s         Domain center, size, and minimum level for rescaling
+  -v         Enable verbose output.
+  -h         Show this help message and exit.
+```
+
 # Reference
 
 Sample code for our CUDA AMR Dual-Mesh Generation / Iso-Surface
