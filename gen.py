@@ -28,4 +28,4 @@ with open("in.cells",
                 cell.write(struct.pack("i", level))
                 scalars.write(struct.pack("f", indicator(x, y, z)))
                 field.write(struct.pack("f", x))
-sys.stderr.write("gen.py: in.cell in.scalar in.field\n")
+sys.stderr.write("gen.py: write in.cell in.scalar in.field\n")
