@@ -1,4 +1,4 @@
-# Run
+## Build
 
 ```
 $ make
@@ -11,6 +11,7 @@ $ make 'NVCCFLAGS = -arch=native' -B
 nvcc -arch=native -Xcompiler '' iso.cu -o iso
 ```
 
+## Run
 Generate input data. For one level mesh.
 
 ```
