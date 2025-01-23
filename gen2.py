@@ -63,5 +63,6 @@ with open("in.cells",
         v = (y + delta) / L
         w = (z + delta) / L
         scalars.write(struct.pack("f", indicator(u, v, w)))
+        print(u)
         field.write(struct.pack("f", u))
 sys.stderr.write("gen2.py: write in.cell in.scalar in.field\n")
