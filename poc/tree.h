@@ -471,11 +471,8 @@ static void update_cache_f (void)
   
   // mesh size
   grid->n = q->leaves.n;
-  // for MPI the reduction operation over all processes is done by balance()
-@if !_MPI
   grid->tn = grid->n;
   grid->maxdepth = grid->depth;
-@endif
 }
 
 macro2 foreach (char flags = 0, Reduce reductions = None) {
@@ -732,13 +729,8 @@ void realloc_scalar (int size)
 #define is_neighbor(...) (allocated(__VA_ARGS__) &&		\
 			  !is_boundary(neighbor(__VA_ARGS__)))
 
-@if _MPI // fixme
-@ define disable_fpe_for_mpi() disable_fpe (FE_DIVBYZERO|FE_INVALID)
-@ define enable_fpe_for_mpi()  enable_fpe (FE_DIVBYZERO|FE_INVALID)
-@else
 @ define disable_fpe_for_mpi()
 @ define enable_fpe_for_mpi()
-@endif
 
 static inline void no_restriction (Point point, scalar s);
 
@@ -1058,10 +1050,6 @@ void init_grid (int n)
   q->restriction = qcalloc (1, CacheLevel);
   q->dirty = true;
   N = 1 << depth;
-@if _MPI
-  void mpi_boundary_new();
-  mpi_boundary_new();
-@endif
   // boundaries
   Boundary * b = qcalloc (1, Boundary);
   b->level = box_boundary_level;
@@ -1185,10 +1173,6 @@ void tree_periodic (int dir)
 }
 #define periodic(dir) tree_periodic(dir)
  
-@if _MPI
-#include "tree-mpi.h"
-#include "balance.h"
-@else // !_MPI
 void mpi_boundary_refine  (scalar * list){}
 void mpi_boundary_coarsen (int a, int b){}
 void mpi_boundary_update  (scalar * list) {
@@ -1196,4 +1180,3 @@ void mpi_boundary_update  (scalar * list) {
     s.dirty = true;
   boundary (list);
 }
-@endif // !_MPI
