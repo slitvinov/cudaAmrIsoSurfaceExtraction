@@ -389,32 +389,13 @@ static void update_cache_f (void)
   for (int l = 0; l <= depth(); l++)
     q->active[l].n = q->prolongation[l].n =
       q->boundary[l].n = q->restriction[l].n = 0;
-#if FBOUNDARY
   const unsigned short fboundary = 1 << user;
   foreach_cell() {
-#else    
-  foreach_cell_all() {
-#endif
     if (is_local(cell) && is_active(cell)) {
       // active cells
       //      assert (is_active(cell));
       cache_level_append (&q->active[level], point);
     }
-#if !FBOUNDARY
-    if (is_boundary(cell)) {
-      // boundary conditions
-      bool has_neighbors = false;
-      foreach_neighbor (BGHOSTS)
-	if (allocated(0) && !is_boundary(cell)) {
-	  has_neighbors = true; break;
-	}
-      if (has_neighbors)
-	cache_level_append (&q->boundary[level], point);
-      // restriction for masked cells
-      if (level > 0 && is_local(aparent(0)))
-	cache_level_append (&q->restriction[level], point);
-    }
-#else
     // boundaries
     if (!is_boundary(cell)) {
       // look in a 5x5 neighborhood for boundary cells
@@ -427,7 +408,6 @@ static void update_cache_f (void)
     // restriction for masked cells
     else if (level > 0 && is_local(aparent(0)))
       cache_level_append (&q->restriction[level], point);
-#endif
     if (is_leaf (cell)) {
       if (is_local(cell)) {
 	cache_append (&q->leaves, point, 0);
@@ -468,9 +448,7 @@ static void update_cache_f (void)
 	      is_prolongation(neighbor(1)))
 	    cache_append_face (neighborp(1), face_x);
       }
-#if FBOUNDARY // fixme: this should always be included
       continue; 
-#endif
     }
   }
 
@@ -487,11 +465,9 @@ static void update_cache_f (void)
   
   q->dirty = false;
 
-#if FBOUNDARY
   for (int l = depth(); l >= 0; l--)
     foreach_boundary_level (l)
       cell.flags &= ~fboundary;
-#endif
   
   // mesh size
   grid->n = q->leaves.n;
