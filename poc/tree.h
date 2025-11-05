@@ -8,12 +8,7 @@ typedef double real;
 struct _Point {
   /* the current cell index and level */
   int i;
-#if dimension >= 2
   int j;
-#endif
-#if dimension >= 3
-  int k;
-#endif
   int level;
 #if LAYERS
   int l;
@@ -38,12 +33,7 @@ struct _Point {
 #endif
 
 #define _I     (point.i - GHOSTS)
-#if dimension >= 2
 # define _J    (point.j - GHOSTS)
-#endif
-#if dimension >= 3
-# define _K    (point.k - GHOSTS)
-#endif
 #define _DELTA (1./(1 << point.level))
 
 typedef struct {
@@ -61,12 +51,7 @@ enum {
   user      = 4,
 
   face_x = 1 << 0
-#if dimension >= 2
   , face_y = 1 << 1
-#endif
-#if dimension >= 3
-  , face_z = 1 << 2
-#endif
 };
 
 @define is_active(cell)  ((cell).flags & active)
@@ -80,12 +65,7 @@ enum {
 
 typedef struct {
   int i;
-#if dimension >= 2
   int j;
-#endif
-#if dimension >= 3
-  int k;
-#endif  
 } IndexLevel;
 
 typedef struct {
@@ -95,12 +75,7 @@ typedef struct {
 
 typedef struct {
   int i;
-#if dimension >= 2
   int j;
-#endif
-#if dimension >= 3
-  int k;
-#endif  
   int level, flags;
 } Index;
 
@@ -126,13 +101,7 @@ static size_t _size (size_t depth)
 static size_t poolsize (size_t depth, size_t size)
 {
   // the maximum amount of data at a given level
-#if dimension == 1
-  return _size(depth)*size;  
-#elif dimension == 2
   return sq(_size(depth))*size;
-#else
-  return cube(_size(depth))*size;
-#endif
 }
 
 static Layer * new_layer (int depth)
@@ -192,12 +161,7 @@ static void cache_level_append (CacheLevel * c, Point p)
     qrealloc (c->p, c->nm, IndexLevel);
   }
   c->p[c->n].i = p.i;
-#if dimension >= 2
   c->p[c->n].j = p.j;
-#endif
-#if dimension >= 3
-  c->p[c->n].k = p.k;
-#endif
   c->n++;
 }
 
@@ -217,12 +181,7 @@ static void cache_append (Cache * c, Point p, unsigned short flags)
     qrealloc (c->p, c->nm, Index);
   }
   c->p[c->n].i = p.i;
-#if dimension >= 2
   c->p[c->n].j = p.j;
-#endif
-#if dimension >= 3
-  c->p[c->n].k = p.k;
-#endif  
   c->p[c->n].level = p.level;
   c->p[c->n].flags = flags;
   c->n++;
@@ -236,18 +195,6 @@ void cache_shrink (Cache * c)
 #undef BSIZE
 
 /* low-level memory management */
-#if dimension == 1
-@define allocated(k,l,n) (mem_allocated (tree->L[point.level]->m, point.i+k))
-@define NEIGHBOR(k,l,n)	(mem_data (tree->L[point.level]->m, point.i+k))
-@def PARENT(k,l,n) (mem_data (tree->L[point.level-1]->m,
-			      (point.i+GHOSTS)/2+k))
-@
-@def allocated_child(k,l,n) (level < depth() &&
-			     mem_allocated(tree->L[point.level+1]->m,
-					   2*point.i-GHOSTS+k))
-@
-@define CHILD(k,l,n)  (mem_data (tree->L[point.level+1]->m, 2*point.i-GHOSTS+k))
-#elif dimension == 2
 @def allocated(k,l,n) (mem_allocated (tree->L[point.level]->m,
 				      point.i+k, point.j+l))
 @
@@ -265,30 +212,6 @@ void cache_shrink (Cache * c)
 @def CHILD(k,l,n)  (mem_data (tree->L[point.level+1]->m,
 			      2*point.i-GHOSTS+k, 2*point.j-GHOSTS+l))
 @
-#else // dimension == 3
-@def allocated(a,l,n) (mem_allocated (tree->L[point.level]->m,
-				      point.i+a, point.j+l, point.k+n))
-@
-@def NEIGHBOR(a,l,n)	(mem_data (tree->L[point.level]->m,
-				   point.i+a, point.j+l, point.k+n))
-@			
-@def PARENT(a,l,n) (mem_data (tree->L[point.level-1]->m,
-			      (point.i+GHOSTS)/2+a,
-			      (point.j+GHOSTS)/2+l,
-			      (point.k+GHOSTS)/2+n))
-@
-@def allocated_child(a,l,n)  (level < depth() &&
-			      mem_allocated (tree->L[point.level+1]->m,
-					     2*point.i-GHOSTS+a,
-					     2*point.j-GHOSTS+l,
-					     2*point.k-GHOSTS+n))
-@
-@def CHILD(a,l,n)  (mem_data (tree->L[point.level+1]->m,
-			      2*point.i-GHOSTS+a,
-			      2*point.j-GHOSTS+l,
-			      2*point.k-GHOSTS+n))
-@
-#endif // dimension == 3
 @define CELL(m) (*((Cell *)(m)))
 
 /***** Multigrid macros *****/
@@ -301,12 +224,7 @@ void cache_shrink (Cache * c)
 @define neighbor(k,l,n)	 CELL(NEIGHBOR(k,l,n))
 @def neighborp(l,m,n) (Point) {
     point.i + l,
-#if dimension >= 2
     point.j + m,
-#endif
-#if dimension >= 3
-    point.k + n,
-#endif
     point.level
     _BLOCK_INDEX
 }
@@ -320,27 +238,14 @@ void cache_shrink (Cache * c)
 macro POINT_VARIABLES (Point point = point) {
   VARIABLES();
   int level = point.level; NOT_UNUSED(level);
-#if dimension == 1
-  struct { int x; } child = { 2*((point.i+GHOSTS)%2)-1 };
-#elif dimension == 2
   struct { int x, y; } child = {
     2*((point.i+GHOSTS)%2)-1, 2*((point.j+GHOSTS)%2)-1
   };
-#else
-  struct { int x, y, z; } child = {
-    2*((point.i+GHOSTS)%2)-1, 2*((point.j+GHOSTS)%2)-1, 2*((point.k+GHOSTS)%2)-1
-  };
-#endif
   NOT_UNUSED(child);
   Point parent = point;	NOT_UNUSED(parent);
   parent.level--;
   parent.i = (point.i + GHOSTS)/2;
-#if dimension >= 2
   parent.j = (point.j + GHOSTS)/2;
-#endif
-#if dimension >= 3
-  parent.k = (point.k + GHOSTS)/2;
-#endif
 #if TRASH
   Cell * cellp = point.level <= depth() && allocated(0,0,0) ?
     (Cell *) NEIGHBOR(0,0,0) : NULL;
@@ -350,21 +255,6 @@ macro POINT_VARIABLES (Point point = point) {
 
 #include "foreach_cell.h"
 
-#if dimension == 1
-macro1 foreach_child (Point point = point, break = (_k = 2)) {
-  {
-    int _i = 2*point.i - GHOSTS;
-    point.level++;
-    for (int _k = 0; _k < 2; _k++) {
-      point.i = _i + _k;
-      POINT_VARIABLES();
-      {...}
-    }
-    point.i = (_i + GHOSTS)/2;
-    point.level--;
-  }
-}
-#elif dimension == 2
 macro1 foreach_child (Point point = point, break = (_k = _l = 2)) {
   {
     int _i = 2*point.i - GHOSTS, _j = 2*point.j - GHOSTS;
@@ -381,27 +271,6 @@ macro1 foreach_child (Point point = point, break = (_k = _l = 2)) {
     point.level--;
   }
 }
-#else // dimension == 3
-macro1 foreach_child (Point point = point, break = (_l = _m = _n = 2)) {
-  {
-    int _i = 2*point.i - GHOSTS, _j = 2*point.j - GHOSTS, _k = 2*point.k - GHOSTS;
-    point.level++;
-    for (int _l = 0; _l < 2; _l++) {
-      point.i = _i + _l;
-      for (int _m = 0; _m < 2; _m++) {
-	point.j = _j + _m;
-	for (int _n = 0; _n < 2; _n++) {
-	  point.k = _k + _n;
-	  POINT_VARIABLES();
-	  {...}
-	}
-      }
-    }
-    point.i = (_i + GHOSTS)/2;point.j = (_j + GHOSTS)/2;point.k = (_k + GHOSTS)/2;
-    point.level--;
-  }
-}
-#endif // dimension == 3
   
 #define update_cache() { if (tree->dirty) update_cache_f(); }
 
@@ -411,12 +280,7 @@ macro1 foreach_child (Point point = point, break = (_l = _m = _n = 2)) {
   
 @def is_refined_check() (is_refined(cell) &&
 			 point.i > 0 && point.i < (1 << level) + 2*GHOSTS - 1
-#if dimension > 1
 			 && point.j > 0 && point.j < (1 << level) + 2*GHOSTS - 1
-#endif
-#if dimension > 2
-			 && point.k > 0 && point.k < (1 << level) + 2*GHOSTS - 1
-#endif
 			 )
 @
 
@@ -426,22 +290,12 @@ macro2 foreach_cache (Cache cache, Reduce reductions = None)
     int ig = 0, jg = 0, kg = 0; NOT_UNUSED(ig); NOT_UNUSED(jg); NOT_UNUSED(kg);
     Point point = {0}; NOT_UNUSED (point);
     point.i = GHOSTS;
-#if dimension > 1
     point.j = GHOSTS;
-#endif
-#if dimension > 2
-    point.k = GHOSTS;
-#endif
     int _k; unsigned short _flags; NOT_UNUSED(_flags);
     OMP(omp for schedule(static))
       for (_k = 0; _k < cache.n; _k++) {
 	point.i = cache.p[_k].i;
-#if dimension >= 2
 	point.j = cache.p[_k].j;
-#endif
-#if dimension >= 3
-	point.k = cache.p[_k].k;
-#endif
 	point.level = cache.p[_k].level;
 	_flags = cache.p[_k].flags;
 	{...}
@@ -455,23 +309,13 @@ macro2 foreach_cache_level (Cache cache, int _l, Reduce reductions = None)
     int ig = 0, jg = 0, kg = 0; NOT_UNUSED(ig); NOT_UNUSED(jg); NOT_UNUSED(kg);
     Point point = {0}; NOT_UNUSED (point);
     point.i = GHOSTS;
-#if dimension > 1
     point.j = GHOSTS;
-#endif
-#if dimension > 2
-    point.k = GHOSTS;
-#endif
     point.level = _l;
     int _k;
     OMP(omp for schedule(static))
       for (_k = 0; _k < cache.n; _k++) {
 	point.i = cache.p[_k].i;
-#if dimension >= 2
 	point.j = cache.p[_k].j;
-#endif
-#if dimension >= 3
-	point.k = cache.p[_k].k;
-#endif
 	{...}
       }
   }
@@ -527,7 +371,6 @@ static inline void cache_append_face (Point point, unsigned short flags)
 {
   Tree * q = tree;
   cache_append (&q->faces, point, flags);
-#if dimension == 2
   if (!is_vertex(cell)) {
     cache_append (&q->vertices, point, 0);
     cell.flags |= vertex;
@@ -537,16 +380,6 @@ static inline void cache_append_face (Point point, unsigned short flags)
       cache_append (&q->vertices, neighborp(1), 0);
       neighbor(1).flags |= vertex;
     }
-#elif dimension == 3
-  foreach_dimension()
-    if (flags & face_x)
-      for (int i = 0; i <= 1; i++)
-	for (int j = 0; j <= 1; j++)
-	  if (!is_vertex(neighbor(0,i,j))) {
-	    cache_append (&q->vertices, neighborp(0,i,j), 0);
-	    neighbor(0,i,j).flags |= vertex;
-	  }
-#endif
 }
 
 #define FBOUNDARY 1 // fixme: this should work with zero
@@ -620,12 +453,7 @@ static void update_cache_f (void)
 	    cache_append (&q->faces, neighborp(1), face_x);
 	// vertices
 	for (int i = 0; i <= 1; i++)
-        #if dimension >= 2
 	  for (int j = 0; j <= 1; j++)
-        #endif
-          #if dimension >= 3
-	    for (int k = 0; k <= 1; k++)
-	  #endif
 	      if (!is_vertex(neighbor(i,j,k))) {
 		cache_append (&q->vertices, neighborp(i,j,k), 0);
 		neighbor(i,j,k).flags |= vertex;
@@ -703,31 +531,14 @@ macro1 is_face_x (unsigned short _f = _flags) {
   }
 }
 
-#if dimension >= 2
 macro1 is_face_y (unsigned short _f = _flags) {
   if (_f & face_y) {
     int jg = -1; NOT_UNUSED(jg);
     {...}
   }
 }
-#endif
-#if dimension >= 3
-macro1 is_face_z (unsigned short _f = _flags) {
-  if (_f & face_z) {
-    int kg = -1; NOT_UNUSED(kg);
-    {...}
-  }
-}
-#endif
 
-#if dimension == 3
-# define foreach_edge(...)			\
-  foreach_vertex (__VA_ARGS__)			\
-    foreach_dimension()				\
-    if (is_vertex(neighbor(1)))
-#else // dimension < 3
 # define foreach_edge(...) foreach_face(y,x,__VA_ARGS__)
-#endif
 
 macro2 foreach_level (int l, char flags = 0, Reduce reductions = None) {
   if (l <= depth()) {
@@ -797,31 +608,6 @@ static void update_depth (int inc)
   q->restriction = cache_level_resize (q->restriction, inc);
 }
 
-#if dimension == 1
-typedef void (* PeriodicFunction) (Memindex, int, int, void *);
-
-static void periodic_function (Memindex m, int i, int len, void * b,
-			       PeriodicFunction f)
-{
-  f(m, i, len, b);
-  if (Period.x) {
-    int nl = len - 2*GHOSTS;
-    for (int l = - 1; l <= 1; l += 2)
-      for (int n = i + l*nl; n >= 0 && n < len; n += l*nl)
-	f(m, n, len, b);
-  }
-}
-			       
-static void assign_periodic (Memindex m, int i, int len, void * b)
-{
-  periodic_function (m, i, len, b, mem_assign);
-}
-
-static void free_periodic (Memindex m, int i, int len)
-{
-  periodic_function (m, i, len, NULL, (PeriodicFunction) mem_free);
-}
-#elif dimension == 2
 typedef void (* PeriodicFunction) (Memindex, int, int, int, void *);
 
 static void periodic_function (Memindex m, int i, int j, int len, void * b,
@@ -859,83 +645,6 @@ static void free_periodic (Memindex m, int i, int j, int len)
 {
   periodic_function (m, i, j, len, NULL, mem_free);
 }
-#else // dimension == 3
-typedef void (* PeriodicFunction) (Memindex, int, int, int, int, void *);
-
-static void periodic_function (Memindex m, int i, int j, int k, int len,
-			       void * b, PeriodicFunction f)
-{
-  f(m, i, j, k, len, b);
-  if (Period.x) {
-    int nl = len - 2*GHOSTS;
-    for (int l = - 1; l <= 1; l += 2)
-      for (int n = i + l*nl; n >= 0 && n < len; n += l*nl)
-	f(m, n, j, k, len, b);
-    if (Period.y) {
-      for (int l = - 1; l <= 1; l += 2)
-	for (int n = j + l*nl; n >= 0 && n < len; n += l*nl) {
-	  f(m, i, n, k, len, b);
-	  for (int o = - 1; o <= 1; o += 2)
-	    for (int p = i + o*nl; p >= 0 && p < len; p += o*nl)
-	      f(m, p, n, k, len, b);
-	}
-      if (Period.z)
-	for (int l = - 1; l <= 1; l += 2)
-	  for (int n = k + l*nl; n >= 0 && n < len; n += l*nl) {
-	    f(m, i, j, n, len, b);
-	    for (int q = - 1; q <= 1; q += 2)
-	      for (int r = j + q*nl; r >= 0 && r < len; r += q*nl)
-		f(m, i, r, n, len, b);
-	    for (int o = - 1; o <= 1; o += 2)
-	      for (int p = i + o*nl; p >= 0 && p < len; p += o*nl) {
-		f(m, p, j, n, len, b);
-		for (int q = - 1; q <= 1; q += 2)
-		  for (int r = j + q*nl; r >= 0 && r < len; r += q*nl)
-		    f(m, p, r, n, len, b);
-	      }
-	  }
-    }
-    else if (Period.z)
-      for (int l = - 1; l <= 1; l += 2)
-	for (int n = k + l*nl; n >= 0 && n < len; n += l*nl) {
-	  f(m, i, j, n, len, b);
-	  for (int o = - 1; o <= 1; o += 2)
-	    for (int p = i + o*nl; p >= 0 && p < len; p += o*nl)
-	      f(m, p, j, n, len, b);
-	}
-  }
-  else if (Period.y) {
-    int nl = len - 2*GHOSTS;
-    for (int l = - 1; l <= 1; l += 2)
-      for (int n = j + l*nl; n >= 0 && n < len; n += l*nl)
-	f(m, i, n, k, len, b);
-    if (Period.z)
-      for (int l = - 1; l <= 1; l += 2)
-	for (int n = k + l*nl; n >= 0 && n < len; n += l*nl) {
-	  f(m, i, j, n, len, b);
-	  for (int o = - 1; o <= 1; o += 2)
-	    for (int p = j + o*nl; p >= 0 && p < len; p += o*nl)
-	      f(m, i, p, n, len, b);
-	}
-  }
-  else if (Period.z) {
-    int nl = len - 2*GHOSTS;
-    for (int l = - 1; l <= 1; l += 2)
-      for (int n = k + l*nl; n >= 0 && n < len; n += l*nl)
-	f(m, i, j, n, len, b);
-  }
-}
-
-static void assign_periodic (Memindex m, int i, int j, int k, int len, void * b)
-{
-  periodic_function (m, i, j, k, len, b, mem_assign);
-}
-
-static void free_periodic (Memindex m, int i, int j, int k, int len)
-{
-  periodic_function (m, i, j, k, len, NULL, (PeriodicFunction) mem_free);
-}
-#endif // dimension == 3
 
 static void alloc_children (Point point)
 {
@@ -951,25 +660,11 @@ static void alloc_children (Point point)
   char * b = (char *) mempool_alloc0 (L->pool);
   int i = 2*point.i - GHOSTS;
   for (int k = 0; k < 2; k++, i++) {
-#if dimension == 1
-    assign_periodic (L->m, i, L->len, b);
-    b += len;
-#elif dimension == 2
     int j = 2*point.j - GHOSTS;
     for (int l = 0; l < 2; l++, j++) {
       assign_periodic (L->m, i, j, L->len, b);
       b += len;
     }
-#else // dimension == 3
-    int j = 2*point.j - GHOSTS;
-    for (int l = 0; l < 2; l++, j++) {
-      int m = 2*point.k - GHOSTS;
-      for (int n = 0; n < 2; n++, m++) {
-	assign_periodic (L->m, i, j, m, L->len, b);
-	b += len;
-      }
-    }
-#endif
   }
   
   int pid = cell.pid;
@@ -982,23 +677,6 @@ static void alloc_children (Point point)
   }
 }
 
-#if dimension == 1 
-static void free_children (Point point)
-{
-  /* low-level memory management */
-  Layer * L = tree->L[point.level + 1];
-  int i = 2*point.i - GHOSTS;
-  assert (mem_data (L->m,i));
-  mempool_free (L->pool, mem_data (L->m,i));
-  for (int k = 0; k < 2; k++, i++)
-    free_periodic (L->m, i, L->len);
-  if (--L->nc == 0) {
-    destroy_layer (L);
-    assert (point.level + 1 == grid->depth);
-    update_depth (-1);
-  }
-}
-#elif dimension == 2
 static void free_children (Point point)
 {
   /* low-level memory management */
@@ -1015,30 +693,6 @@ static void free_children (Point point)
     update_depth (-1);
   }
 }
-#else // dimension == 3
-static void free_children (Point point)
-{
-  /* low-level memory management */
-  Layer * L = tree->L[point.level + 1];
-  int i = 2*point.i - GHOSTS;
-  assert (mem_data (L->m,i,2*point.j - GHOSTS,2*point.k - GHOSTS));
-  mempool_free (L->pool, mem_data (L->m,
-				   i,2*point.j - GHOSTS,2*point.k - GHOSTS));
-  for (int k = 0; k < 2; k++, i++) {
-    int j = 2*point.j - GHOSTS;
-    for (int l = 0; l < 2; l++, j++) {
-      int m = 2*point.k - GHOSTS;
-      for (int n = 0; n < 2; n++, m++)
-	free_periodic (L->m, i, j, m, L->len);
-    }
-  }
-  if (--L->nc == 0) {
-    destroy_layer (L);
-    assert (point.level + 1 == grid->depth);
-    update_depth (-1);
-  }
-}
-#endif // dimension == 3
 
 void increment_neighbors (Point point)
 {
@@ -1079,18 +733,9 @@ void realloc_scalar (int size)
   /* the root level is allocated differently */
   Layer * L = q->L[0];
   foreach_mem (L->m, L->len, 1) {
-#if dimension == 1
-    char * p = (char *) realloc (mem_data (L->m, point.i), newlen*sizeof(char));
-    assign_periodic (L->m, point.i, L->len, p);
-#elif dimension == 2
     char * p = (char *) realloc (mem_data (L->m, point.i, point.j),
 				 newlen*sizeof(char));
     assign_periodic (L->m, point.i, point.j, L->len, p);
-#else
-    char * p = (char *) realloc (mem_data (L->m, point.i, point.j, point.k),
-				 newlen*sizeof(char));
-    assign_periodic (L->m, point.i, point.j, point.k, L->len, p);
-#endif
   }
   /* all other levels */
   for (int l = 1; l <= depth(); l++) {
@@ -1099,30 +744,12 @@ void realloc_scalar (int size)
     L->pool = mempool_new (poolsize (l, newlen), (1 << dimension)*newlen);
     foreach_mem (L->m, L->len, 2) {
       char * new = (char *) mempool_alloc (L->pool);
-#if dimension == 1
-      for (int k = 0; k < 2; k++) {
-	memcpy (new, mem_data (L->m, point.i + k), oldlen);
-	assign_periodic (L->m, point.i + k, L->len, new);
-	new += newlen;
-      }
-#elif dimension == 2
       for (int k = 0; k < 2; k++)
 	for (int o = 0; o < 2; o++) {
 	  memcpy (new, mem_data (L->m, point.i + k,point.j + o), oldlen);
 	  assign_periodic (L->m, point.i + k, point.j + o, L->len, new);
 	  new += newlen;
 	}
-#else // dimension == 3
-      for (int l = 0; l < 2; l++)
-	for (int m = 0; m < 2; m++)
-	  for (int n = 0; n < 2; n++) {
-	    memcpy (new, mem_data (L->m, point.i + l, point.j + m, point.k + n),
-		    oldlen);
-	    assign_periodic (L->m, point.i + l, point.j + m, point.k + n,
-				 L->len, new);
-	    new += newlen;
-	  }
-#endif // dimension == 3
     }
     mempool_destroy (oldpool);
   }
@@ -1161,16 +788,9 @@ static bool normal_neighbor (Point point, scalar * scalars, vector * vectors)
 	    scalar vn = VN;
 	    foreach_blockf (v.x)
 	      v.x[] = vn.boundary[id](neighborp(i), point, v.x, NULL);
-#if dimension >= 2
 	    scalar vt = VT;
 	    foreach_blockf (v.y)
 	      v.y[] = vt.boundary[id](neighborp(i), point, v.y, NULL);
-#endif
-#if dimension >= 3
-	    scalar vr = VR;
-	    foreach_blockf (v.z)
-	      v.z[] = vr.boundary[id](neighborp(i), point, v.z, NULL);
-#endif
 	  }
 	  return true;
 	}
@@ -1180,11 +800,7 @@ static bool normal_neighbor (Point point, scalar * scalars, vector * vectors)
 static bool diagonal_neighbor_2D (Point point,
 				  scalar * scalars, vector * vectors)
 {
-#if dimension >= 2
   for (int k = 1; k <= BGHOSTS; k++)
-#if dimension == 3
-    foreach_dimension()
-#endif
       for (int i = -k; i <= k; i += 2*k)
 	for (int j = -k; j <= k; j += 2*k)
 	  if (allocated(i,j) && is_neighbor(i,j) &&
@@ -1206,68 +822,18 @@ static bool diagonal_neighbor_2D (Point point,
 		v.y[] = (vn.boundary[id1](neighborp(i,j), neighborp(i,0), v.y, NULL) +
 			 vt.boundary[id2](neighborp(i,j), neighborp(0,j), v.y,NULL) -
 			 v.y[i,j]);
-#if dimension == 3
-	      scalar vr = VR;
-	      foreach_blockf (v.z)
-		v.z[] = (vr.boundary[id1](neighborp(i,j), neighborp(i,0), v.z, NULL) +
-			 vr.boundary[id2](neighborp(i,j), neighborp(0,j), v.z,NULL) -
-			 v.z[i,j]);
-#endif
 	    }
 	    return true;
 	  }
-#endif // dimension >= 2
   return false;
 }
 
 static bool diagonal_neighbor_3D (Point point,
 				  scalar * scalars, vector * vectors)
 {
-#if dimension == 3
-  for (int n = 1; n <= BGHOSTS; n++)
-    for (int i = -n; i <= n; i += 2*n)
-      for (int j = -n; j <= n; j += 2*n)
-	for (int k = -n; k <= n; k += 2*n)
-	  if (is_neighbor(i,j,k) &&
-	      is_boundary(neighbor(i,j,0)) &&
-	      is_boundary(neighbor(i,0,k)) &&
-	      is_boundary(neighbor(0,j,k))) {
-	    Point
-	      n0 = neighborp(i,j,k),
-	      n1 = neighborp(i,j,0),
-	      n2 = neighborp(i,0,k),
-	      n3 = neighborp(0,j,k);
-	    int
-	      id1 = bid(neighbor(i,j,0)),
-	      id2 = bid(neighbor(i,0,k)),
-	      id3 = bid(neighbor(0,j,k));
-	    for (scalar s in scalars)
-	      s[] = (s.boundary[id1](n0,n1,s,NULL) +
-		     s.boundary[id2](n0,n2,s,NULL) +
-		     s.boundary[id3](n0,n3,s,NULL) -
-		     2.*s[i,j,k]);
-	    for (vector v in vectors) {
-	      scalar vt = VT, vn = VN, vr = VR;
-	      v.x[] = (vt.boundary[id1](n0,n1,v.x,NULL) +
-		       vt.boundary[id2](n0,n2,v.x,NULL) +
-		       vn.boundary[id3](n0,n3,v.x,NULL) -
-		       2.*v.x[i,j,k]);
-	      v.y[] = (vt.boundary[id1](n0,n1,v.y,NULL) +
-		       vn.boundary[id2](n0,n2,v.y,NULL) +
-		       vt.boundary[id3](n0,n3,v.y,NULL) -
-		       2.*v.y[i,j,k]);
-	      v.z[] = (vn.boundary[id1](n0,n1,v.z,NULL) +
-		       vr.boundary[id2](n0,n2,v.z,NULL) +
-		       vr.boundary[id3](n0,n3,v.z,NULL) -
-		       2.*v.z[i,j,k]);
-	    }
-	    return true;
-	  }
-#endif
   return false;
 }
 
-#if dimension > 1
 foreach_dimension()
 static Point tangential_neighbor_x (Point point, bool * zn)
 {
@@ -1277,17 +843,9 @@ static Point tangential_neighbor_x (Point point, bool * zn)
 	*zn = false;
 	return neighborp(0,j);
       }
-#if dimension == 3
-      // fixme: what about diagonals?
-      if (is_neighbor(0,0,j) || is_neighbor(-1,0,j)) {
-	*zn = true;
-	return neighborp(0,0,j);
-      }
-#endif // dimension == 3
     }
   return (Point){.level = -1};
 }
-#endif // dimension > 1
 
 static inline bool is_boundary_point (Point point) {
   return is_boundary (cell);
@@ -1337,7 +895,6 @@ static void box_boundary_level (const Boundary * b, scalar * list, int l)
 		  v.x[(i + 1)/2] = vn.boundary[id](neighbor, point, v.x, NULL);
 	    }
 	  }
-#if dimension > 1
 	  else if (i == -1) {
 	    // tangential neighbor
 	    bool zn;
@@ -1346,11 +903,7 @@ static void box_boundary_level (const Boundary * b, scalar * list, int l)
 	      int id = is_boundary_point (neighbor) ?
 		bid(neighbor(-1)) : bid(cell);
 	      for (vector v in faces) {
-#if dimension == 2
 		scalar vt = VT;
-#else // dimension == 3
-		scalar vt = zn ? VT : VR;
-#endif
 		foreach_blockf (v.x)
 		  v.x[] = vt.boundary[id](neighbor, point, v.x, NULL);
 	      }
@@ -1361,7 +914,6 @@ static void box_boundary_level (const Boundary * b, scalar * list, int l)
 		foreach_blockf (v.x)
 		  v.x[] = 0.;
 	  }
-#endif // dimension > 1
 	}
     }
   }
@@ -1473,13 +1025,7 @@ void free_grid (void)
   /* the root level is allocated differently */
   Layer * L = q->L[0];
   foreach_mem (L->m, L->len, 1) {
-#if dimension == 1
-    free (mem_data (L->m, point.i));
-#elif dimension == 2
     free (mem_data (L->m, point.i, point.j));
-#else // dimension == 3
-    free (mem_data (L->m, point.i, point.j, point.k));
-#endif // dimension == 3
   }
   for (int l = 0; l <= depth(); l++)
     destroy_layer (q->L[l]);
@@ -1522,19 +1068,6 @@ void init_grid (int n)
   /* initialise the root cell */
   Layer * L = new_layer (0);
   q->L[0] = L;
-#if dimension == 1
-  for (int i = Period.x*GHOSTS; i < L->len - Period.x*GHOSTS; i++)
-    assign_periodic (L->m, i, L->len, 
-		     (char *) calloc (1, sizeof(Cell) + datasize));
-  CELL(mem_data (L->m,GHOSTS)).flags |= leaf;
-  if (pid() == 0)
-    CELL(mem_data (L->m,GHOSTS)).flags |= active;
-  for (int k = -GHOSTS*(1 - Period.x); k <= GHOSTS*(1 - Period.x); k++)
-    CELL(mem_data (L->m,GHOSTS+k)).pid = (k < 0 ? -1 - left :
-					  k > 0 ? -1 - right :
-					  0);
-  CELL(mem_data (L->m,GHOSTS)).pid = 0;
-#elif dimension == 2
   for (int i = Period.x*GHOSTS; i < L->len - Period.x*GHOSTS; i++)
     for (int j = Period.y*GHOSTS; j < L->len - Period.y*GHOSTS; j++)
       assign_periodic (L->m, i, j, L->len,
@@ -1551,28 +1084,6 @@ void init_grid (int n)
 	 l < 0 ? -1 - bottom :
 	 0);
   CELL(mem_data (L->m,GHOSTS,GHOSTS)).pid = 0;
-#else // dimension == 3
-  for (int i = Period.x*GHOSTS; i < L->len - Period.x*GHOSTS; i++)
-    for (int j = Period.y*GHOSTS; j < L->len - Period.y*GHOSTS; j++)
-      for (int k = Period.z*GHOSTS; k < L->len - Period.z*GHOSTS; k++)
-	assign_periodic (L->m, i, j, k, L->len,
-			 (char *) calloc (1, sizeof(Cell) + datasize));
-  CELL(mem_data (L->m,GHOSTS,GHOSTS,GHOSTS)).flags |= leaf;
-  if (pid() == 0)
-    CELL(mem_data (L->m,GHOSTS,GHOSTS,GHOSTS)).flags |= active;
-  for (int k = - GHOSTS*(1 - Period.x); k <= GHOSTS*(1 - Period.x); k++)
-    for (int l = -GHOSTS*(1 - Period.y); l <= GHOSTS*(1 - Period.y); l++)
-      for (int n = -GHOSTS*(1 - Period.z); n <= GHOSTS*(1 - Period.z); n++)
-	CELL(mem_data (L->m,GHOSTS+k,GHOSTS+l,GHOSTS+n)).pid =
-	  (k > 0 ? -1 - right :
-	   k < 0 ? -1 - left :
-	   l > 0 ? -1 - top :
-	   l < 0 ? -1 - bottom :
-	   n > 0 ? -1 - front :
-	   n < 0 ? -1 - back :
-	   0);
-  CELL(mem_data (L->m,GHOSTS,GHOSTS,GHOSTS)).pid = 0;
-#endif // dimension == 3
   q->active = qcalloc (1, CacheLevel);
   q->prolongation = qcalloc (1, CacheLevel);
   q->boundary = qcalloc (1, CacheLevel);
@@ -1593,7 +1104,6 @@ void init_grid (int n)
   update_cache();
 }
 
-#if dimension == 2
 void check_two_one (void)
 {
   foreach_leaf()
@@ -1626,7 +1136,6 @@ void check_two_one (void)
 	  }
 	}
 }
-#endif
 
 Point locate (double xp = 0., double yp = 0., double zp = 0.)
 {
@@ -1635,19 +1144,9 @@ Point locate (double xp = 0., double yp = 0., double zp = 0.)
     point.level = l;
     int n = 1 << point.level;
     point.i = (xp - X0)/L0*n + GHOSTS;
-#if dimension >= 2
     point.j = (yp - Y0)/L0*n + GHOSTS;
-#endif
-#if dimension >= 3
-    point.k = (zp - Z0)/L0*n + GHOSTS;
-#endif
     if (point.i >= 0 && point.i < n + 2*GHOSTS
-#if dimension >= 2
 	&& point.j >= 0 && point.j < n + 2*GHOSTS
-#endif
-#if dimension >= 3
-	&& point.k >= 0 && point.k < n + 2*GHOSTS
-#endif
 	) {
       if (allocated(0) && is_local(cell) && is_leaf(cell))
 	return point;
@@ -1683,20 +1182,10 @@ macro2 foreach_boundary (int _b, Reduce reductions = None) {
 		!is_boundary(neighbor(-ig,-jg,-kg)) &&
 		is_local(neighbor(-ig,-jg,-kg))) {
 	      point.i -= ig; x -= ig*Delta/2.; 
-#if dimension >= 2
 	      point.j -= jg; y -= jg*Delta/2.; 
-#endif
-#if dimension >= 3
-	      point.k -= kg; z -= kg*Delta/2.;
-#endif
 	      {...}
 	      point.i += ig; x += ig*Delta/2.;   
-#if dimension >= 2
 	      point.j += jg; y += jg*Delta/2.; 
-#endif
-#if dimension >= 3
-	      point.k += kg; z += kg*Delta/2.;
-#endif
             }
 	  }
 	  ig = jg = kg = 0;
@@ -1709,12 +1198,7 @@ macro2 foreach_vertex (char flags = 0, Reduce reductions = None)
   update_cache();
   foreach_cache (tree->vertices, reductions) {
     int ig = -1; NOT_UNUSED (ig);
-#if dimension >= 2
     int jg = -1; NOT_UNUSED (jg);
-#endif
-#if dimension >= 3
-    int kg = -1; NOT_UNUSED (kg);
-#endif    
     {...}
   }
 }
