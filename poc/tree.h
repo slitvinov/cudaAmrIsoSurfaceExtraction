@@ -10,20 +10,12 @@ struct _Point {
   int i;
   int j;
   int level;
-#if LAYERS
-  int l;
-  @define _BLOCK_INDEX , point.l
-#else
   @define _BLOCK_INDEX
-#endif
 };
 
 //#include "memindex/range.h"
 #include "memindex/virtual.h"
 
-#if LAYERS
-# include "grid/layers.h"
-#endif
 
 /* By default only one layer of ghost cells is used on the boundary to
    optimise the cost of boundary conditions. */
