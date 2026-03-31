@@ -245,115 +245,88 @@ static int comp_vert(const void *a, const void *b) {
   return 0;
 }
 
-/* ---- XDMF2 parsing ---- */
-
-static int tag_attr(const char *tag, const char *attr, char *val, int sz) {
-  const char *end = strchr(tag, '>');
-  char pat[64];
-  if (!end)
-    return 0;
-  snprintf(pat, sizeof pat, "%s=\"", attr);
-  const char *p = strstr(tag, pat);
-  if (!p || p >= end)
-    return 0;
-  p += strlen(pat);
-  const char *q = strchr(p, '"');
-  if (!q || q >= end)
-    return 0;
-  int n = (int)(q - p) < sz - 1 ? (int)(q - p) : sz - 1;
-  memcpy(val, p, n);
-  val[n] = '\0';
-  return 1;
+static long fsize(FILE *f) {
+  long n;
+  fseek(f, 0, SEEK_END);
+  n = ftell(f);
+  fseek(f, 0, SEEK_SET);
+  return n;
 }
 
-static int dataitem_text(const char *pos, char *text, int sz, int *prec) {
-  const char *di = strstr(pos, "<DataItem");
-  const char *gt, *end;
-  char buf[16] = "4";
-  int n;
-  if (!di)
-    return 0;
-  gt = strchr(di, '>');
-  if (!gt)
-    return 0;
-  tag_attr(di, "Precision", buf, sizeof buf);
-  if (prec)
-    *prec = atoi(buf);
-  end = strstr(gt, "</DataItem");
-  if (!end)
-    return 0;
-  gt++;
-  while (gt < end && (*gt == ' ' || *gt == '\t' || *gt == '\n' || *gt == '\r'))
-    gt++;
-  end--;
-  while (end > gt &&
-         (end[0] == ' ' || end[0] == '\t' || end[0] == '\n' || end[0] == '\r'))
-    end--;
-  n = (int)(end - gt + 1);
-  if (n < 0)
-    n = 0;
-  if (n >= sz)
-    n = sz - 1;
-  memcpy(text, gt, n);
-  text[n] = '\0';
-  return 1;
-}
-
-static const char *find_named_attr(const char *xml, const char *name) {
-  char pat[256];
+static void parse_field_spec(const char *spec, char *path, int pathsz,
+                            int *offset, int *stride) {
   const char *p;
-  snprintf(pat, sizeof pat, "Name=\"%s\"", name);
-  p = xml;
-  while ((p = strstr(p, "<Attribute")) != NULL) {
-    const char *end = strchr(p, '>');
-    if (end && strstr(p, pat) && strstr(p, pat) < end + 1)
-      return p;
-    p++;
+  int n;
+  *offset = 0;
+  *stride = 1;
+  p = strchr(spec, ':');
+  if (p) {
+    n = (int)(p - spec);
+    if (n >= pathsz)
+      n = pathsz - 1;
+    memcpy(path, spec, n);
+    path[n] = '\0';
+    if (sscanf(p + 1, "%d:%d", offset, stride) != 2) {
+      fprintf(stderr, "iso3d: error: bad field spec '%s' (use file:offset:stride)\n", spec);
+      exit(1);
+    }
+  } else {
+    n = strlen(spec);
+    if (n >= pathsz)
+      n = pathsz - 1;
+    memcpy(path, spec, n);
+    path[n] = '\0';
   }
-  return NULL;
 }
 
-static void read_field(const char *path, int prec, unsigned long long n,
-                       float *out) {
+static void read_field(const char *path, unsigned long long ncell, int offset,
+                       int stride, float *out) {
   unsigned long long i;
+  long sz;
   FILE *f = fopen(path, "rb");
   if (!f) {
     fprintf(stderr, "iso3d: error: cannot open '%s'\n", path);
     exit(1);
   }
-  if (prec == 4) {
-    if (fread(out, sizeof(float), n, f) != n) {
+  sz = fsize(f);
+  if (sz == (long)(ncell * stride * sizeof(float))) {
+    float *buf;
+    ALLOC(buf, ncell * stride);
+    if (fread(buf, sizeof(float), ncell * stride, f) != ncell * (unsigned long long)stride) {
       fprintf(stderr, "iso3d: error: short read '%s'\n", path);
       exit(1);
     }
-  } else {
-    double *buf;
-    ALLOC(buf, n);
-    if (fread(buf, sizeof(double), n, f) != n) {
-      fprintf(stderr, "iso3d: error: short read '%s'\n", path);
-      exit(1);
-    }
-    for (i = 0; i < n; i++)
-      out[i] = (float)buf[i];
+    for (i = 0; i < ncell; i++)
+      out[i] = buf[i * stride + offset];
     free(buf);
+  } else if (sz == (long)(ncell * stride * sizeof(double))) {
+    double *buf;
+    ALLOC(buf, ncell * stride);
+    if (fread(buf, sizeof(double), ncell * stride, f) != ncell * (unsigned long long)stride) {
+      fprintf(stderr, "iso3d: error: short read '%s'\n", path);
+      exit(1);
+    }
+    for (i = 0; i < ncell; i++)
+      out[i] = (float)buf[i * stride + offset];
+    free(buf);
+  } else {
+    fprintf(stderr,
+            "iso3d: error: '%s' size %ld does not match %llu cells with stride %d\n",
+            path, sz, ncell, stride);
+    exit(1);
   }
   fclose(f);
 }
 
 int main(int argc, char **argv) {
   int Verbose;
-  char *xdmf_path, *scalar_name, *field_name, *output_path, *end_p;
+  char *geo_path, *output_path, *end_p;
+  char sc_path[FILENAME_MAX], fl_path[FILENAME_MAX];
+  int sc_off, sc_stride, fl_off, fl_stride;
   float iso;
   FILE *f;
-  long flen;
-  char *xml;
-  char dir[FILENAME_MAX], geo_rel[FILENAME_MAX], geo_path[FILENAME_MAX];
-  char sc_rel[FILENAME_MAX], sc_path[FILENAME_MAX];
-  char fl_rel[FILENAME_MAX], fl_path[FILENAME_MAX];
-  int sc_prec, fl_prec;
-  const char *p, *topo, *geo, *attr;
-  char buf[256];
-  unsigned long long nhex, ntri, nvert, cnt, i;
+  long geo_sz;
+  unsigned long long ncell, ntri, nvert, cnt, i;
   float *geo_data, *sc_data, *fl_data, h, h_min, ox, oy, oz;
   struct Cell *cells;
   struct Vertex *tv, *vert;
@@ -362,6 +335,7 @@ int main(int argc, char **argv) {
       attr_path[FILENAME_MAX], xdmf_out[FILENAME_MAX];
   char *xyz_base, *tri_base, *attr_base;
   long j;
+  int kk;
 
   (void)argc;
   Verbose = 0;
@@ -372,14 +346,14 @@ int main(int argc, char **argv) {
       break;
     case 'h':
       fprintf(stderr,
-              "Usage: iso3d [-v] input.xdmf2 scalar field iso output\n\n"
-              "Extract 3D iso-surfaces from an XDMF2 dump.\n\n"
+              "Usage: iso3d [-v] coords.raw scalar field level output\n\n"
+              "Extract 3D iso-surfaces from raw binary files.\n\n"
               "Arguments:\n"
-              "  input.xdmf2  XDMF2 file with Hexahedron topology.\n"
-              "  scalar       Name of the iso-surface scalar field.\n"
-              "  field        Name of the field to interpolate.\n"
-              "  iso          Iso-value.\n"
-              "  output       Output file name prefix.\n");
+              "  coords.raw  Hexahedron vertices, float[ncell][8][3].\n"
+              "  scalar      Cell-centered scalar (file or file:offset:stride).\n"
+              "  field       Cell-centered field (file or file:offset:stride).\n"
+              "  level       Iso-value.\n"
+              "  output      Output file name prefix.\n");
       exit(0);
     default:
       fprintf(stderr, "iso3d: error: unknown option '%s'\n", *argv);
@@ -387,12 +361,13 @@ int main(int argc, char **argv) {
     }
   if (!argv[0] || !argv[1] || !argv[2] || !argv[3] || !argv[4]) {
     fprintf(stderr,
-            "Usage: iso3d [-v] input.xdmf2 scalar field iso output\n");
+            "Usage: iso3d [-v] coords.raw scalar.raw field.raw level "
+            "output\n");
     exit(1);
   }
-  xdmf_path = argv[0];
-  scalar_name = argv[1];
-  field_name = argv[2];
+  geo_path = argv[0];
+  parse_field_spec(argv[1], sc_path, sizeof sc_path, &sc_off, &sc_stride);
+  parse_field_spec(argv[2], fl_path, sizeof fl_path, &fl_off, &fl_stride);
   iso = strtod(argv[3], &end_p);
   if (*end_p != '\0') {
     fprintf(stderr, "iso3d: error: '%s' is not a number\n", argv[3]);
@@ -400,91 +375,21 @@ int main(int argc, char **argv) {
   }
   output_path = argv[4];
 
-  /* read XDMF2 */
-  f = fopen(xdmf_path, "r");
-  if (!f) {
-    fprintf(stderr, "iso3d: error: cannot open '%s'\n", xdmf_path);
-    exit(1);
-  }
-  fseek(f, 0, SEEK_END);
-  flen = ftell(f);
-  fseek(f, 0, SEEK_SET);
-  ALLOC(xml, flen + 1);
-  fread(xml, 1, flen, f);
-  xml[flen] = '\0';
-  fclose(f);
-
-  /* directory of XDMF2 for resolving relative paths */
-  dir[0] = '\0';
-  p = strrchr(xdmf_path, '/');
-  if (p) {
-    int n = (int)(p - xdmf_path + 1);
-    memcpy(dir, xdmf_path, n);
-    dir[n] = '\0';
-  }
-
-  /* parse topology */
-  topo = strstr(xml, "<Topology");
-  if (!topo) {
-    fprintf(stderr, "iso3d: error: no <Topology> in '%s'\n", xdmf_path);
-    exit(1);
-  }
-  if (!tag_attr(topo, "Dimensions", buf, sizeof buf)) {
-    fprintf(stderr, "iso3d: error: no Dimensions in <Topology>\n");
-    exit(1);
-  }
-  nhex = strtoull(buf, NULL, 10);
-
-  /* parse geometry */
-  geo = strstr(xml, "<Geometry");
-  if (!geo) {
-    fprintf(stderr, "iso3d: error: no <Geometry> in '%s'\n", xdmf_path);
-    exit(1);
-  }
-  if (!dataitem_text(geo, geo_rel, sizeof geo_rel, NULL)) {
-    fprintf(stderr, "iso3d: error: no geometry DataItem\n");
-    exit(1);
-  }
-  snprintf(geo_path, sizeof geo_path, "%s%s", dir, geo_rel);
-
-  /* parse scalar attribute */
-  attr = find_named_attr(xml, scalar_name);
-  if (!attr) {
-    fprintf(stderr, "iso3d: error: attribute '%s' not found\n", scalar_name);
-    exit(1);
-  }
-  if (!dataitem_text(attr, sc_rel, sizeof sc_rel, &sc_prec)) {
-    fprintf(stderr, "iso3d: error: no DataItem for '%s'\n", scalar_name);
-    exit(1);
-  }
-  snprintf(sc_path, sizeof sc_path, "%s%s", dir, sc_rel);
-
-  /* parse field attribute */
-  attr = find_named_attr(xml, field_name);
-  if (!attr) {
-    fprintf(stderr, "iso3d: error: attribute '%s' not found\n", field_name);
-    exit(1);
-  }
-  if (!dataitem_text(attr, fl_rel, sizeof fl_rel, &fl_prec)) {
-    fprintf(stderr, "iso3d: error: no DataItem for '%s'\n", field_name);
-    exit(1);
-  }
-  snprintf(fl_path, sizeof fl_path, "%s%s", dir, fl_rel);
-  free(xml);
-
-  if (Verbose)
-    fprintf(stderr,
-            "iso3d: nhex=%llu geo=%s scalar=%s(prec=%d) field=%s(prec=%d)\n",
-            nhex, geo_path, sc_path, sc_prec, fl_path, fl_prec);
-
-  /* read geometry: 8 vertices * 3 coords per hex, float */
-  ALLOC(geo_data, 24 * nhex);
+  /* read geometry, determine ncell from file size */
   f = fopen(geo_path, "rb");
   if (!f) {
     fprintf(stderr, "iso3d: error: cannot open '%s'\n", geo_path);
     exit(1);
   }
-  if (fread(geo_data, sizeof(float), 24 * nhex, f) != 24 * nhex) {
+  geo_sz = fsize(f);
+  ncell = geo_sz / (8 * 3 * sizeof(float));
+  if (ncell * 8 * 3 * sizeof(float) != (unsigned long long)geo_sz) {
+    fprintf(stderr, "iso3d: error: '%s' size %ld is not a multiple of %lu\n",
+            geo_path, geo_sz, 8 * 3 * sizeof(float));
+    exit(1);
+  }
+  ALLOC(geo_data, 24 * ncell);
+  if (fread(geo_data, sizeof(float), 24 * ncell, f) != 24 * ncell) {
     fprintf(stderr, "iso3d: error: short read '%s'\n", geo_path);
     exit(1);
   }
@@ -495,12 +400,9 @@ int main(int argc, char **argv) {
   ox = 1e30f;
   oy = 1e30f;
   oz = 1e30f;
-  for (i = 0; i < nhex; i++) {
+  for (i = 0; i < ncell; i++) {
     float *v = &geo_data[24 * i];
-    float xmin = v[0], xmax = v[0];
-    float ymin = v[1], ymax = v[1];
-    float zmin = v[2];
-    int kk;
+    float xmin = v[0], xmax = v[0], ymin = v[1], zmin = v[2];
     for (kk = 1; kk < 8; kk++) {
       if (v[3 * kk] < xmin)
         xmin = v[3 * kk];
@@ -508,8 +410,6 @@ int main(int argc, char **argv) {
         xmax = v[3 * kk];
       if (v[3 * kk + 1] < ymin)
         ymin = v[3 * kk + 1];
-      if (v[3 * kk + 1] > ymax)
-        ymax = v[3 * kk + 1];
       if (v[3 * kk + 2] < zmin)
         zmin = v[3 * kk + 2];
     }
@@ -525,11 +425,10 @@ int main(int argc, char **argv) {
   }
 
   /* build cells */
-  ALLOC(cells, nhex);
-  for (i = 0; i < nhex; i++) {
+  ALLOC(cells, ncell);
+  for (i = 0; i < ncell; i++) {
     float *v = &geo_data[24 * i];
-    float xmin = v[0], ymin = v[1], zmin = v[2], xmax = v[0];
-    int kk;
+    float xmin = v[0], xmax = v[0], ymin = v[1], zmin = v[2];
     for (kk = 1; kk < 8; kk++) {
       if (v[3 * kk] < xmin)
         xmin = v[3 * kk];
@@ -550,12 +449,12 @@ int main(int argc, char **argv) {
   }
   free(geo_data);
 
-  /* read scalar and field data */
-  ALLOC(sc_data, nhex);
-  ALLOC(fl_data, nhex);
-  read_field(sc_path, sc_prec, nhex, sc_data);
-  read_field(fl_path, fl_prec, nhex, fl_data);
-  for (i = 0; i < nhex; i++) {
+  /* read fields */
+  ALLOC(sc_data, ncell);
+  ALLOC(fl_data, ncell);
+  read_field(sc_path, ncell, sc_off, sc_stride, sc_data);
+  read_field(fl_path, ncell, fl_off, fl_stride, fl_data);
+  for (i = 0; i < ncell; i++) {
     cells[i].scalar = sc_data[i];
     cells[i].field = fl_data[i];
   }
@@ -563,15 +462,15 @@ int main(int argc, char **argv) {
   free(fl_data);
 
   if (Verbose)
-    fprintf(stderr, "iso3d: ncell=%llu h_min=%g origin=[%g %g %g]\n", nhex,
+    fprintf(stderr, "iso3d: ncell=%llu h_min=%g origin=[%g %g %g]\n", ncell,
             (double)h_min, (double)ox, (double)oy, (double)oz);
 
   /* sort by morton code */
-  qsort(cells, nhex, sizeof *cells, comp);
+  qsort(cells, ncell, sizeof *cells, comp);
 
   /* extract: count */
   cnt = 0;
-  extract(cells, nhex, iso, NULL, 0, &cnt);
+  extract(cells, ncell, iso, NULL, 0, &cnt);
   ntri = cnt;
   if (Verbose)
     fprintf(stderr, "iso3d: ntri=%llu\n", ntri);
@@ -583,7 +482,7 @@ int main(int argc, char **argv) {
   /* extract: fill */
   ALLOC(tv, 3 * ntri);
   cnt = 0;
-  extract(cells, nhex, iso, tv, 3 * ntri, &cnt);
+  extract(cells, ncell, iso, tv, 3 * ntri, &cnt);
   free(cells);
 
   /* sort and deduplicate vertices */
@@ -602,7 +501,7 @@ int main(int argc, char **argv) {
   /* write output */
   snprintf(xyz_path, sizeof xyz_path, "%s.xyz.raw", output_path);
   snprintf(tri_path, sizeof tri_path, "%s.tri.raw", output_path);
-  snprintf(attr_path, sizeof attr_path, "%s.%s.raw", output_path, field_name);
+  snprintf(attr_path, sizeof attr_path, "%s.attr.raw", output_path);
   snprintf(xdmf_out, sizeof xdmf_out, "%s.xdmf2", output_path);
   xyz_base = xyz_path;
   tri_base = tri_path;
@@ -614,7 +513,6 @@ int main(int argc, char **argv) {
       attr_base = &attr_path[j + 1];
     }
 
-  /* xyz coordinates in physical space */
   {
     float xyz[3];
     f = fopen(xyz_path, "wb");
@@ -631,12 +529,10 @@ int main(int argc, char **argv) {
     fclose(f);
   }
 
-  /* triangle connectivity */
   f = fopen(tri_path, "wb");
   fwrite(tri, ntri * sizeof *tri, 1, f);
   fclose(f);
 
-  /* attribute */
   {
     float *a;
     ALLOC(a, nvert);
@@ -650,7 +546,6 @@ int main(int argc, char **argv) {
   free(vert);
   free(tri);
 
-  /* XDMF2 */
   f = fopen(xdmf_out, "w");
   fprintf(f,
           "<Xdmf\n"
@@ -677,7 +572,7 @@ int main(int argc, char **argv) {
           "      </Geometry>\n"
           "      <Attribute\n"
           "          Center=\"Node\"\n"
-          "          Name=\"%s\">\n"
+          "          Name=\"u\">\n"
           "        <DataItem\n"
           "            Dimensions=\"%llu\"\n"
           "            Precision=\"4\"\n"
@@ -688,6 +583,6 @@ int main(int argc, char **argv) {
           "    </Grid>\n"
           "  </Domain>\n"
           "</Xdmf>\n",
-          ntri, ntri, tri_base, nvert, xyz_base, field_name, nvert, attr_base);
+          ntri, ntri, tri_base, nvert, xyz_base, nvert, attr_base);
   fclose(f);
 }

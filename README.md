@@ -65,26 +65,28 @@ $ python view2d.py mesh2d-amr in.cells
 ```
 ![AMR 2D](img/gen2d-amr.svg)
 
-## XDMF2 Front-Ends
+## Extraction from Raw Binary Dumps
 
-`iso3d` and `iso2d` read XDMF2 dump files directly (Hexahedron or
-Quadrilateral topology with cell-centered attributes) and extract
-iso-surfaces or iso-lines:
+`iso3d` and `iso2d` read raw binary files directly and extract
+iso-surfaces or iso-lines. The number of cells is inferred from the
+geometry file size. Field precision (float or double) is detected
+automatically.
 
-```
-$ ./iso3d -v dump.xdmf2 rho rho 0.5 iso
-iso3d: nhex=8000 geo=dump.xyz.raw scalar=dump.rho.raw(prec=8) field=dump.rho.raw(prec=8)
-iso3d: ncell=8000 h_min=0.1 origin=[0 0 0]
-iso3d: ntri=1234
-iso3d: nvert=619
-```
+For interleaved fields (multiple values per cell in one file), use the
+`file:offset:stride` syntax:
 
 ```
-$ ./iso2d -v dump.xdmf2 rho rho 0.5 iso
-iso2d: nquad=1600 geo=dump.xyz.raw scalar=dump.rho.raw(prec=8) field=dump.rho.raw(prec=8)
-iso2d: ncell=1600 h_min=0.1 origin=[0 0]
-iso2d: nseg=64
-iso2d: nvert=64
+$ ./iso3d -v output/weir-000000.xyz.raw output/weir-000000.attr.raw:0:6 output/weir-000000.attr.raw:0:6 0.5 output/weir-000000-iso
+iso3d: ncell=100864 h_min=0.0078125 origin=[0 0 0]
+iso3d: ntri=10694
+iso3d: nvert=5478
+$ python viewtri.py output/weir-000000-iso
+```
+
+For simple one-value-per-cell files, just pass the path:
+```
+$ ./iso3d -v dump.xyz.raw dump.rho.raw dump.rho.raw 0.5 iso
+$ ./iso2d -v dump.xy.raw dump.rho.raw dump.rho.raw 0.5 iso
 ```
 
 ## Usage
@@ -125,30 +127,30 @@ Options:
 
 ```
 $ ./iso3d -h
-Usage: iso3d [-v] input.xdmf2 scalar field iso output
+Usage: iso3d [-v] coords.raw scalar.raw field.raw level output
 
-Extract 3D iso-surfaces from an XDMF2 dump.
+Extract 3D iso-surfaces from raw binary files.
 
 Arguments:
-  input.xdmf2  XDMF2 file with Hexahedron topology.
-  scalar       Name of the iso-surface scalar field.
-  field        Name of the field to interpolate.
-  iso          Iso-value.
-  output       Output file name prefix.
+  coords.raw  Hexahedron vertices, float[ncell][8][3].
+  scalar.raw  Cell-centered scalar field (float or double).
+  field.raw   Cell-centered field to interpolate.
+  level       Iso-value.
+  output      Output file name prefix.
 ```
 
 ```
 $ ./iso2d -h
-Usage: iso2d [-v] input.xdmf2 scalar field iso output
+Usage: iso2d [-v] coords.raw scalar.raw field.raw level output
 
-Extract 2D iso-lines from an XDMF2 dump.
+Extract 2D iso-lines from raw binary files.
 
 Arguments:
-  input.xdmf2  XDMF2 file with Quadrilateral topology.
-  scalar       Name of the iso-surface scalar field.
-  field        Name of the field to interpolate.
-  iso          Iso-value.
-  output       Output file name prefix.
+  coords.raw  Quadrilateral vertices, float[ncell][4][2].
+  scalar.raw  Cell-centered scalar field (float or double).
+  field.raw   Cell-centered field to interpolate.
+  level       Iso-value.
+  output      Output file name prefix.
 ```
 
 ## Files
@@ -158,14 +160,15 @@ Arguments:
 | [iso.cu](iso.cu) | 3D iso-surface extraction (CUDA) |
 | [iso.c](iso.c) | 3D iso-surface extraction (C99) |
 | [cube.c](cube.c) | 2D iso-line extraction (C99) |
-| [iso3d.c](iso3d.c) | 3D iso-surface from XDMF2 dump (C99) |
-| [iso2d.c](iso2d.c) | 2D iso-line from XDMF2 dump (C99) |
+| [iso3d.c](iso3d.c) | 3D iso-surface from raw binary dumps (C99) |
+| [iso2d.c](iso2d.c) | 2D iso-line from raw binary dumps (C99) |
 | [table.inc](table.inc) | Marching cubes lookup table |
 | [gen3d.py](gen3d.py) | Generate uniform 3D test data |
 | [gen3d-amr.py](gen3d-amr.py) | Generate multi-resolution 3D AMR test data |
 | [gen2d.py](gen2d.py) | Generate uniform 2D test data |
 | [gen2d-amr.py](gen2d-amr.py) | Generate multi-resolution 2D AMR test data |
-| [view3d.py](view3d.py) | Visualize 3D iso-surface (requires meshio, matplotlib) |
+| [viewtri.py](viewtri.py) | Plot triangle mesh from raw binary (requires matplotlib, numpy) |
+| [view3d.py](view3d.py) | Visualize 3D iso-surface via XDMF2 (requires meshio, matplotlib) |
 | [view2d.py](view2d.py) | Visualize 2D iso-line (requires matplotlib, numpy) |
 
 ## Reference
