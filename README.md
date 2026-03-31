@@ -193,13 +193,34 @@ rho = np.fromfile('dump.rho.raw', dtype=np.float64).astype(np.float32)
 xy, seg, attr = amriso.extract2d(geo, rho, rho, 2.0)
 ```
 
-Reading raw binary dumps (3D, interleaved fields):
+Reading raw binary dumps (3D, interleaved fields).
+The [assets/](assets/) directory contains example data from a
+sharp-crested weir simulation (Hexahedron topology, 6 floats per cell:
+`f`, `p`, `cs`, `ux`, `uy`, `uz`):
 ```python
+import numpy as np, amriso
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+
 geo = np.fromfile('assets/weir-001010.xyz.raw', dtype=np.float32)
 attr_raw = np.fromfile('assets/weir-001010.attr.raw', dtype=np.float32)
 ncell = len(attr_raw) // 6
 f = attr_raw.reshape(ncell, 6)[:, 0].copy()
+
 xyz, tri, attr = amriso.extract3d(geo, f, f, 0.5)
+amriso.dump3d('assets/weir-001010-iso', xyz, tri, attr)
+
+xs = xyz[:, [0, 2, 1]]
+fig = plt.figure(figsize=(10, 8))
+ax = fig.add_subplot(111, projection='3d')
+ta = attr[tri].mean(axis=1)
+norm = plt.Normalize(ta.min(), ta.max())
+poly = Poly3DCollection(xs[tri], facecolors=plt.cm.viridis(norm(ta)),
+                        edgecolor='k', linewidth=0.05)
+ax.add_collection3d(poly)
+ax.auto_scale_xyz(xs[:, 0], xs[:, 1], xs[:, 2])
+ax.set_xlabel('x'); ax.set_ylabel('z'); ax.set_zlabel('y (up)')
+plt.savefig('weir.png', dpi=150, bbox_inches='tight')
 ```
 
 ![weir 3D iso-surface](img/weir3d.png)
