@@ -72,21 +72,17 @@ iso-surfaces or iso-lines. The number of cells is inferred from the
 geometry file size. Field precision (float or double) is detected
 automatically.
 
-For interleaved fields (multiple values per cell in one file), use the
-`file:offset:stride` syntax:
-
-```
-$ ./iso3d -v output/weir-000000.xyz.raw output/weir-000000.attr.raw:0:6 output/weir-000000.attr.raw:0:6 0.5 output/weir-000000-iso
-iso3d: ncell=100864 h_min=0.0078125 origin=[0 0 0]
-iso3d: ntri=10694
-iso3d: nvert=5478
-$ python viewtri.py output/weir-000000-iso
-```
-
-For simple one-value-per-cell files, just pass the path:
+For simple one-value-per-cell files:
 ```
 $ ./iso3d -v dump.xyz.raw dump.rho.raw dump.rho.raw 0.5 iso
 $ ./iso2d -v dump.xy.raw dump.rho.raw dump.rho.raw 0.5 iso
+```
+
+For interleaved fields (multiple values per cell in one file), use
+`file:offset:stride`:
+```
+$ ./iso3d -v dump.xyz.raw dump.attr.raw:0:6 dump.attr.raw:0:6 0.5 iso
+$ python viewtri.py iso
 ```
 
 ## Usage
@@ -153,6 +149,44 @@ Arguments:
   output      Output file name prefix.
 ```
 
+## Python Extension
+
+Build:
+```
+$ python setup.py build_ext --inplace
+```
+
+Allocating mode:
+```python
+import numpy as np, pyiso2d
+
+coords, scalar = pyiso2d.example()
+xy, seg, attr = pyiso2d.extract(coords, scalar, scalar, 0.0)
+```
+
+Zero-allocation mode (for repeated calls):
+```python
+ncell = len(scalar)
+nmax = 4 * ncell
+work = np.empty(pyiso2d.workspace_size(ncell), dtype=np.uint8)
+xy = np.empty((nmax, 2), dtype=np.float32)
+seg = np.empty((nmax, 2), dtype=np.int32)
+attr = np.empty(nmax, dtype=np.float32)
+for scalar in time_series:
+    nseg, nvert = pyiso2d.extract(
+        coords, scalar, scalar, 0.5,
+        out=(xy, seg, attr), work=work)
+```
+
+Reading raw binary dumps:
+```python
+geo = np.fromfile('dump.xy.raw', dtype=np.float32)
+rho = np.fromfile('dump.rho.raw', dtype=np.float64).astype(np.float32)
+xy, seg, attr = pyiso2d.extract(geo, rho, rho, 2.0)
+for s in seg:
+    plt.plot(xy[s, 0], xy[s, 1], 'k-')
+```
+
 ## Files
 
 | File | Description |
@@ -170,6 +204,9 @@ Arguments:
 | [viewtri.py](viewtri.py) | Plot triangle mesh from raw binary (requires matplotlib, numpy) |
 | [view3d.py](view3d.py) | Visualize 3D iso-surface via XDMF2 (requires meshio, matplotlib) |
 | [view2d.py](view2d.py) | Visualize 2D iso-line (requires matplotlib, numpy) |
+| [pyiso2d.c](pyiso2d.c) | Python C extension for 2D iso-line extraction |
+| [setup.py](setup.py) | Build script for pyiso2d |
+| [run.sh](run.sh) | Rebuild everything and process output data |
 
 ## Reference
 

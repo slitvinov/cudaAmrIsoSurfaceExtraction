@@ -494,8 +494,8 @@ positional:
   }
   if (ScaleFlag == 0) {
     for (i = 0; i < nvert; i++) {
-      xy[0] = vert[i].position.x;
-      xy[1] = vert[i].position.y;
+      xy[0] = vert[i].position.x + ox;
+      xy[1] = vert[i].position.y + oy;
       if (fwrite(xy, sizeof xy, 1, file) != 1) {
         fprintf(stderr, "cube: error: fail to write '%s'\n", xy_path);
         exit(1);

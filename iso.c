@@ -505,9 +505,9 @@ positional:
   }
   if (ScaleFlag == 0) {
     for (i = 0; i < nvert; i++) {
-      xyz[0] = vert[i].position.x;
-      xyz[1] = vert[i].position.y;
-      xyz[2] = vert[i].position.z;
+      xyz[0] = vert[i].position.x + ox;
+      xyz[1] = vert[i].position.y + oy;
+      xyz[2] = vert[i].position.z + oz;
       if (fwrite(xyz, sizeof xyz, 1, file) != 1) {
         fprintf(stderr, "iso: error: fail to write '%s'\n", xyz_path);
         exit(1);
