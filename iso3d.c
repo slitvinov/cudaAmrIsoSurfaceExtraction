@@ -254,7 +254,7 @@ static long fsize(FILE *f) {
 }
 
 static void parse_field_spec(const char *spec, char *path, int pathsz,
-                            int *offset, int *stride) {
+                             int *offset, int *stride) {
   const char *p;
   int n;
   *offset = 0;
@@ -267,7 +267,9 @@ static void parse_field_spec(const char *spec, char *path, int pathsz,
     memcpy(path, spec, n);
     path[n] = '\0';
     if (sscanf(p + 1, "%d:%d", offset, stride) != 2) {
-      fprintf(stderr, "iso3d: error: bad field spec '%s' (use file:offset:stride)\n", spec);
+      fprintf(stderr,
+              "iso3d: error: bad field spec '%s' (use file:offset:stride)\n",
+              spec);
       exit(1);
     }
   } else {
@@ -292,7 +294,8 @@ static void read_field(const char *path, unsigned long long ncell, int offset,
   if (sz == (long)(ncell * stride * sizeof(float))) {
     float *buf;
     ALLOC(buf, ncell * stride);
-    if (fread(buf, sizeof(float), ncell * stride, f) != ncell * (unsigned long long)stride) {
+    if (fread(buf, sizeof(float), ncell * stride, f) !=
+        ncell * (unsigned long long)stride) {
       fprintf(stderr, "iso3d: error: short read '%s'\n", path);
       exit(1);
     }
@@ -302,7 +305,8 @@ static void read_field(const char *path, unsigned long long ncell, int offset,
   } else if (sz == (long)(ncell * stride * sizeof(double))) {
     double *buf;
     ALLOC(buf, ncell * stride);
-    if (fread(buf, sizeof(double), ncell * stride, f) != ncell * (unsigned long long)stride) {
+    if (fread(buf, sizeof(double), ncell * stride, f) !=
+        ncell * (unsigned long long)stride) {
       fprintf(stderr, "iso3d: error: short read '%s'\n", path);
       exit(1);
     }
@@ -311,7 +315,8 @@ static void read_field(const char *path, unsigned long long ncell, int offset,
     free(buf);
   } else {
     fprintf(stderr,
-            "iso3d: error: '%s' size %ld does not match %llu cells with stride %d\n",
+            "iso3d: error: '%s' size %ld does not match %llu cells with stride "
+            "%d\n",
             path, sz, ncell, stride);
     exit(1);
   }
@@ -331,8 +336,8 @@ int main(int argc, char **argv) {
   struct Cell *cells;
   struct Vertex *tv, *vert;
   struct int3 *tri;
-  char xyz_path[FILENAME_MAX], tri_path[FILENAME_MAX],
-      attr_path[FILENAME_MAX], xdmf_out[FILENAME_MAX];
+  char xyz_path[FILENAME_MAX], tri_path[FILENAME_MAX], attr_path[FILENAME_MAX],
+      xdmf_out[FILENAME_MAX];
   char *xyz_base, *tri_base, *attr_base;
   long j;
   int kk;
@@ -345,24 +350,24 @@ int main(int argc, char **argv) {
       Verbose = 1;
       break;
     case 'h':
-      fprintf(stderr,
-              "Usage: iso3d [-v] coords.raw scalar field level output\n\n"
-              "Extract 3D iso-surfaces from raw binary files.\n\n"
-              "Arguments:\n"
-              "  coords.raw  Hexahedron vertices, float[ncell][8][3].\n"
-              "  scalar      Cell-centered scalar (file or file:offset:stride).\n"
-              "  field       Cell-centered field (file or file:offset:stride).\n"
-              "  level       Iso-value.\n"
-              "  output      Output file name prefix.\n");
+      fprintf(
+          stderr,
+          "Usage: iso3d [-v] coords.raw scalar field level output\n\n"
+          "Extract 3D iso-surfaces from raw binary files.\n\n"
+          "Arguments:\n"
+          "  coords.raw  Hexahedron vertices, float[ncell][8][3].\n"
+          "  scalar      Cell-centered scalar (file or file:offset:stride).\n"
+          "  field       Cell-centered field (file or file:offset:stride).\n"
+          "  level       Iso-value.\n"
+          "  output      Output file name prefix.\n");
       exit(0);
     default:
       fprintf(stderr, "iso3d: error: unknown option '%s'\n", *argv);
       exit(1);
     }
   if (!argv[0] || !argv[1] || !argv[2] || !argv[3] || !argv[4]) {
-    fprintf(stderr,
-            "Usage: iso3d [-v] coords.raw scalar.raw field.raw level "
-            "output\n");
+    fprintf(stderr, "Usage: iso3d [-v] coords.raw scalar.raw field.raw level "
+                    "output\n");
     exit(1);
   }
   geo_path = argv[0];

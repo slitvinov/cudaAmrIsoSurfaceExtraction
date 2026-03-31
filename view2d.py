@@ -32,7 +32,12 @@ fig, ax = plt.subplots(figsize=(8, 8))
 for c in cells:
     x, y, lev = c
     h = 1 << lev
-    rect = plt.Rectangle((x, y), h, h, linewidth=0.3, edgecolor="0.7", facecolor="none")
+    rect = plt.Rectangle((x, y),
+                         h,
+                         h,
+                         linewidth=0.3,
+                         edgecolor="0.7",
+                         facecolor="none")
     ax.add_patch(rect)
 for s in seg:
     ax.plot(xy[s, 0], xy[s, 1], "k-", linewidth=2)
