@@ -9,6 +9,8 @@ CPU-only (C99, no dependencies):
 ```
 $ make iso-cpu
 $ make cube
+$ make iso2d
+$ make iso3d
 ```
 
 ## 3D Iso-Surface Extraction
@@ -63,6 +65,28 @@ $ python view2d.py mesh2d-amr in.cells
 ```
 ![AMR 2D](img/gen2d-amr.svg)
 
+## XDMF2 Front-Ends
+
+`iso3d` and `iso2d` read XDMF2 dump files directly (Hexahedron or
+Quadrilateral topology with cell-centered attributes) and extract
+iso-surfaces or iso-lines:
+
+```
+$ ./iso3d -v dump.xdmf2 rho rho 0.5 iso
+iso3d: nhex=8000 geo=dump.xyz.raw scalar=dump.rho.raw(prec=8) field=dump.rho.raw(prec=8)
+iso3d: ncell=8000 h_min=0.1 origin=[0 0 0]
+iso3d: ntri=1234
+iso3d: nvert=619
+```
+
+```
+$ ./iso2d -v dump.xdmf2 rho rho 0.5 iso
+iso2d: nquad=1600 geo=dump.xyz.raw scalar=dump.rho.raw(prec=8) field=dump.rho.raw(prec=8)
+iso2d: ncell=1600 h_min=0.1 origin=[0 0]
+iso2d: nseg=64
+iso2d: nvert=64
+```
+
 ## Usage
 
 ```
@@ -97,6 +121,34 @@ Options:
   -s         Domain center, size, and minimum level for rescaling
   -v         Enable verbose output.
   -h         Show this help message and exit.
+```
+
+```
+$ ./iso3d -h
+Usage: iso3d [-v] input.xdmf2 scalar field iso output
+
+Extract 3D iso-surfaces from an XDMF2 dump.
+
+Arguments:
+  input.xdmf2  XDMF2 file with Hexahedron topology.
+  scalar       Name of the iso-surface scalar field.
+  field        Name of the field to interpolate.
+  iso          Iso-value.
+  output       Output file name prefix.
+```
+
+```
+$ ./iso2d -h
+Usage: iso2d [-v] input.xdmf2 scalar field iso output
+
+Extract 2D iso-lines from an XDMF2 dump.
+
+Arguments:
+  input.xdmf2  XDMF2 file with Quadrilateral topology.
+  scalar       Name of the iso-surface scalar field.
+  field        Name of the field to interpolate.
+  iso          Iso-value.
+  output       Output file name prefix.
 ```
 
 ## Files
