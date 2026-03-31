@@ -5,15 +5,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* ================================================================
-   Marching cubes table (3D)
-   ================================================================ */
+
 #define __constant__ static const
 #include "table.inc"
 
-/* ================================================================
-   Marching squares table (2D)
-   ================================================================ */
+
 static const int8_t msq_cases[16][5] = {
     {-1, -1, -1, -1, -1}, {0, 3, -1, -1, -1}, {0, 1, -1, -1, -1},
     {1, 3, -1, -1, -1},   {1, 2, -1, -1, -1}, {0, 3, 1, 2, -1},
@@ -24,9 +20,7 @@ static const int8_t msq_cases[16][5] = {
 };
 static const int8_t msq_edges[4][2] = {{0, 1}, {1, 2}, {3, 2}, {0, 3}};
 
-/* ================================================================
-   2D types and functions
-   ================================================================ */
+
 struct v2i {
   int x, y;
 };
@@ -228,9 +222,7 @@ static int compv2(const void *a, const void *b) {
   return 0;
 }
 
-/* ================================================================
-   3D types and functions
-   ================================================================ */
+
 struct v3i {
   int x, y, z;
 };
@@ -451,9 +443,7 @@ static int compv3(const void *a, const void *b) {
   return 0;
 }
 
-/* ================================================================
-   Python: extract2d
-   ================================================================ */
+
 enum { MAX_SEG = 4, MAX_TRI = 5 };
 
 static PyObject *py_extract2d(PyObject *self, PyObject *args,
@@ -647,9 +637,7 @@ static PyObject *py_extract2d(PyObject *self, PyObject *args,
   }
 }
 
-/* ================================================================
-   Python: extract3d
-   ================================================================ */
+
 static PyObject *py_extract3d(PyObject *self, PyObject *args,
                               PyObject *kwargs) {
   static char *kw[] = {"coords", "scalar", "field", "iso", "out", "work",
@@ -869,9 +857,7 @@ static PyObject *py_extract3d(PyObject *self, PyObject *args,
   }
 }
 
-/* ================================================================
-   Python: workspace_size2d / workspace_size3d / example2d / example3d
-   ================================================================ */
+
 static PyObject *py_ws2(PyObject *self, PyObject *args) {
   unsigned long long nc;
   (void)self;
