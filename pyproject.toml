@@ -1,0 +1,13 @@
+[build-system]
+requires = ["setuptools", "numpy"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "amriso"
+version = "0.1.0"
+description = "AMR iso-surface and iso-line extraction"
+requires-python = ">=3.8"
+dependencies = ["numpy"]
+
+[tool.setuptools]
+py-modules = []

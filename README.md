@@ -149,43 +149,60 @@ Arguments:
   output      Output file name prefix.
 ```
 
-## Python Extension
+## Python Package (amriso)
 
 Build:
 ```
-$ python setup.py build_ext --inplace
+$ pip install -e .
 ```
 
-Allocating mode:
+2D iso-lines:
 ```python
-import numpy as np, pyiso2d
+import amriso
 
-coords, scalar = pyiso2d.example()
-xy, seg, attr = pyiso2d.extract(coords, scalar, scalar, 0.0)
+coords, scalar = amriso.example2d()
+xy, seg, attr = amriso.extract2d(coords, scalar, scalar, 0.0)
+```
+
+3D iso-surfaces:
+```python
+coords, scalar = amriso.example3d()
+xyz, tri, attr = amriso.extract3d(coords, scalar, scalar, 0.0)
 ```
 
 Zero-allocation mode (for repeated calls):
 ```python
+import numpy as np
+
 ncell = len(scalar)
 nmax = 4 * ncell
-work = np.empty(pyiso2d.workspace_size(ncell), dtype=np.uint8)
+work = np.empty(amriso.workspace_size2d(ncell), dtype=np.uint8)
 xy = np.empty((nmax, 2), dtype=np.float32)
 seg = np.empty((nmax, 2), dtype=np.int32)
 attr = np.empty(nmax, dtype=np.float32)
 for scalar in time_series:
-    nseg, nvert = pyiso2d.extract(
+    nseg, nvert = amriso.extract2d(
         coords, scalar, scalar, 0.5,
         out=(xy, seg, attr), work=work)
 ```
 
-Reading raw binary dumps:
+Reading raw binary dumps (2D):
 ```python
 geo = np.fromfile('dump.xy.raw', dtype=np.float32)
 rho = np.fromfile('dump.rho.raw', dtype=np.float64).astype(np.float32)
-xy, seg, attr = pyiso2d.extract(geo, rho, rho, 2.0)
-for s in seg:
-    plt.plot(xy[s, 0], xy[s, 1], 'k-')
+xy, seg, attr = amriso.extract2d(geo, rho, rho, 2.0)
 ```
+
+Reading raw binary dumps (3D, interleaved fields):
+```python
+geo = np.fromfile('assets/weir-001010.xyz.raw', dtype=np.float32)
+attr_raw = np.fromfile('assets/weir-001010.attr.raw', dtype=np.float32)
+ncell = len(attr_raw) // 6
+f = attr_raw.reshape(ncell, 6)[:, 0].copy()
+xyz, tri, attr = amriso.extract3d(geo, f, f, 0.5)
+```
+
+![weir 3D iso-surface](img/weir3d.svg)
 
 ## Files
 
@@ -204,8 +221,9 @@ for s in seg:
 | [viewtri.py](viewtri.py) | Plot triangle mesh from raw binary (requires matplotlib, numpy) |
 | [view3d.py](view3d.py) | Visualize 3D iso-surface via XDMF2 (requires meshio, matplotlib) |
 | [view2d.py](view2d.py) | Visualize 2D iso-line (requires matplotlib, numpy) |
-| [pyiso2d.c](pyiso2d.c) | Python C extension for 2D iso-line extraction |
-| [setup.py](setup.py) | Build script for pyiso2d |
+| [amriso.c](amriso.c) | Python C extension (2D + 3D) |
+| [pyproject.toml](pyproject.toml) | Python package metadata |
+| [setup.py](setup.py) | Build script for amriso |
 | [run.sh](run.sh) | Rebuild everything and process output data |
 
 ## Reference

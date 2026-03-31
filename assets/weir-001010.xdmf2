@@ -1,0 +1,90 @@
+<Xdmf
+    Version="2">
+  <Domain>
+    <Grid>
+      <Time
+          Value="1.0100000000000007e+00"/>
+      <Topology
+          TopologyType="Hexahedron"
+          Dimensions="219150"/>
+      <Geometry>
+        <DataItem
+            Dimensions="1753200 3"
+            Format="Binary">
+          weir-001010.xyz.raw
+        </DataItem>
+      </Geometry>
+      <Attribute
+          Name="f"
+          Center="Cell">
+        <DataItem
+            ItemType="HyperSlab"
+            Dimensions="219150"
+            Type="HyperSlab">
+          <DataItem Dimensions="3 1">
+            0 6 219150
+          </DataItem>
+          <DataItem
+              Dimensions="1314900"
+              Format="Binary">
+            weir-001010.attr.raw
+          </DataItem>
+         </DataItem>
+      </Attribute>
+      <Attribute
+          Name="p"
+          Center="Cell">
+        <DataItem
+            ItemType="HyperSlab"
+            Dimensions="219150"
+            Type="HyperSlab">
+          <DataItem Dimensions="3 1">
+            1 6 219150
+          </DataItem>
+          <DataItem
+              Dimensions="1314900"
+              Format="Binary">
+            weir-001010.attr.raw
+          </DataItem>
+         </DataItem>
+      </Attribute>
+      <Attribute
+          Name="cs"
+          Center="Cell">
+        <DataItem
+            ItemType="HyperSlab"
+            Dimensions="219150"
+            Type="HyperSlab">
+          <DataItem Dimensions="3 1">
+            2 6 219150
+          </DataItem>
+          <DataItem
+              Dimensions="1314900"
+              Format="Binary">
+            weir-001010.attr.raw
+          </DataItem>
+         </DataItem>
+      </Attribute>
+      <Attribute
+          Name="u"
+          AttributeType="Vector"
+          Center="Cell">
+        <DataItem
+            ItemType="HyperSlab"
+            Dimensions="219150 3"
+            Type="HyperSlab">
+          <DataItem Dimensions="3 2">
+            0 3
+            1 1
+            219150 3
+          </DataItem>
+          <DataItem
+              Dimensions="219150 6"
+              Format="Binary">
+            weir-001010.attr.raw
+          </DataItem>
+         </DataItem>
+      </Attribute>
+    </Grid>
+  </Domain>
+</Xdmf>
