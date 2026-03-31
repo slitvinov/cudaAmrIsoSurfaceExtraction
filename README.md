@@ -158,6 +158,8 @@ Arguments:
 | [iso.cu](iso.cu) | 3D iso-surface extraction (CUDA) |
 | [iso.c](iso.c) | 3D iso-surface extraction (C99) |
 | [cube.c](cube.c) | 2D iso-line extraction (C99) |
+| [iso3d.c](iso3d.c) | 3D iso-surface from XDMF2 dump (C99) |
+| [iso2d.c](iso2d.c) | 2D iso-line from XDMF2 dump (C99) |
 | [table.inc](table.inc) | Marching cubes lookup table |
 | [gen3d.py](gen3d.py) | Generate uniform 3D test data |
 | [gen3d-amr.py](gen3d-amr.py) | Generate multi-resolution 3D AMR test data |

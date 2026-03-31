@@ -15,9 +15,15 @@ iso-cpu: iso.c table.inc
 cube: cube.c
 	$(CC) $(CFLAGS) $< -o $@
 
+iso2d: iso2d.c
+	$(CC) $(CFLAGS) $< -o $@ -lm
+
+iso3d: iso3d.c table.inc
+	$(CC) $(CFLAGS) $< -o $@ -lm
+
 clean:
-	rm -f iso iso-cpu cube
+	rm -f iso iso-cpu cube iso2d iso3d
 
 install:
 	mkdir -p '$(PREFIX)'/bin
-	cp iso iso-cpu cube '$(PREFIX)'/bin/
+	cp iso iso-cpu cube iso2d iso3d '$(PREFIX)'/bin/
