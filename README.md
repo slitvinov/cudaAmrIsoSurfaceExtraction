@@ -202,7 +202,7 @@ f = attr_raw.reshape(ncell, 6)[:, 0].copy()
 xyz, tri, attr = amriso.extract3d(geo, f, f, 0.5)
 ```
 
-![weir 3D iso-surface](img/weir3d.svg)
+![weir 3D iso-surface](img/weir3d.png)
 
 ## Files
 
