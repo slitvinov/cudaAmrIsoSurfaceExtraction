@@ -67,5 +67,5 @@ with open("in.cells",
         w = (z + delta) / L
         scalars.write(struct.pack("f", indicator(u, v, w)))
         field.write(struct.pack("f", u))
-sys.stderr.write("gen2.py: write in.cell in.scalar in.field\n")
+sys.stderr.write("gen3d-amr.py: write in.cells in.scalar in.field\n")
 print(stat)
