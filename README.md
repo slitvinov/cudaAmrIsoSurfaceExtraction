@@ -23,7 +23,7 @@ iso: ntri: 128
 iso: nvert: 66
 $ python view3d.py mesh
 ```
-![uniform 3D](img/gen3d.png)
+![uniform 3D](img/gen3d.svg)
 
 Multi-resolution AMR mesh:
 ```
@@ -35,7 +35,7 @@ iso: ntri: 6460
 iso: nvert: 3232
 $ python view3d.py mesh-amr
 ```
-![AMR 3D](img/gen3d-amr.png)
+![AMR 3D](img/gen3d-amr.svg)
 
 ## 2D Iso-Line Extraction
 
@@ -49,7 +49,7 @@ cube: nseg: 32
 cube: nvert: 32
 $ python view2d.py mesh2d in.cells
 ```
-![uniform 2D](img/gen2d.png)
+![uniform 2D](img/gen2d.svg)
 
 Multi-resolution AMR mesh:
 ```
@@ -61,7 +61,7 @@ cube: nseg: 116
 cube: nvert: 116
 $ python view2d.py mesh2d-amr in.cells
 ```
-![AMR 2D](img/gen2d-amr.png)
+![AMR 2D](img/gen2d-amr.svg)
 
 ## Usage
 

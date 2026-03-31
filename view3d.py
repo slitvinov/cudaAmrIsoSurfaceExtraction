@@ -13,5 +13,5 @@ ax = fig.add_subplot(111, projection="3d")
 triangles = [points[cell] for cell in cells]
 poly_collection = Poly3DCollection(triangles, edgecolor="k")
 ax.add_collection3d(poly_collection)
-plt.savefig(prefix + ".png", dpi=150)
-sys.stderr.write("view3d.py: %s.png\n" % prefix)
+plt.savefig(prefix + ".svg", bbox_inches="tight")
+sys.stderr.write("view3d.py: %s.svg\n" % prefix)
