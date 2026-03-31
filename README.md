@@ -213,15 +213,18 @@ amriso.dump3d('assets/weir-001010-iso', xyz, tri, attr)
 xs = xyz[:, [0, 2, 1]]
 fig = plt.figure(figsize=(10, 8))
 ax = fig.add_subplot(111, projection='3d')
-ta = attr[tri].mean(axis=1)
-norm = plt.Normalize(ta.min(), ta.max())
-poly = Poly3DCollection(xs[tri], facecolors=plt.cm.viridis(norm(ta)),
+poly = Poly3DCollection(xs[tri], facecolor='steelblue',
                         edgecolor='k', linewidth=0.05)
 ax.add_collection3d(poly)
 ax.auto_scale_xyz(xs[:, 0], xs[:, 1], xs[:, 2])
 ax.set_xlabel('x'); ax.set_ylabel('z'); ax.set_zlabel('y (up)')
 plt.savefig('weir.png', dpi=150, bbox_inches='tight')
+
+amriso.dump3d('weir-iso', xyz, tri, attr)
 ```
+
+The `dump3d` call writes `weir-iso.xdmf2`, `weir-iso.xyz.raw`,
+`weir-iso.tri.raw`, and `weir-iso.attr.raw` for viewing in ParaView.
 
 ![weir 3D iso-surface](img/weir3d.png)
 
