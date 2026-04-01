@@ -4,6 +4,9 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef _OPENMP
+#include <omp.h>
+#endif
 
 
 #include "table.h"
@@ -112,15 +115,17 @@ static int findActual2(const struct Cell2 *cells, const uint64_t ncell,
 static void extract2d(const struct Cell2 *cells, const uint64_t ncell,
                       const float iso, struct Vert2 *out, const uint64_t size,
                       uint64_t *cnt) {
-  uint64_t wid, id;
-  int32_t did, x, y, index, i, j, k, ii, dx, dy, ix, iy, skip;
-  const int8_t *edge, *vert;
-  float t;
-  struct Vert2 vertex[4], v0, v1, sv[2];
-  struct v2i lower;
-  struct Cell2 corner[2][2], cell;
+  uint64_t wid;
+#pragma omp parallel for schedule(dynamic, 64)
   for (wid = 0; wid < ncell; wid++) {
+    int32_t did;
     for (did = 0; did < 4; did++) {
+      struct Cell2 corner[2][2], cell;
+      struct Vert2 vertex[4], v0, v1, sv[2];
+      struct v2i lower;
+      const int8_t *edge, *vert;
+      int32_t x, y, index, i, j, k, ii, dx, dy, ix, iy, skip;
+      float t;
       cell = cells[wid];
       dy = (did & 2) ? 1 : -1;
       dx = (did & 1) ? 1 : -1;
@@ -158,6 +163,7 @@ static void extract2d(const struct Cell2 *cells, const uint64_t ncell,
       if (index == 0 || index == 0xf)
         continue;
       for (edge = &msq_cases[index][0]; edge[0] > -1; edge += 2) {
+        uint64_t id;
         for (ii = 0; ii < 2; ii++) {
           vert = msq_edges[edge[ii]];
           v0 = vertex[vert[0]];
@@ -170,6 +176,7 @@ static void extract2d(const struct Cell2 *cells, const uint64_t ncell,
         }
         if (v2f_eq(sv[0].pos, sv[1].pos))
           continue;
+#pragma omp atomic capture
         id = (*cnt)++;
         if (out == NULL || 2 * id + 1 >= size)
           continue;
@@ -319,15 +326,17 @@ static int findActual3(const struct Cell3 *cells, const uint64_t ncell,
 static void extract3d(const struct Cell3 *cells, const uint64_t ncell,
                       const float iso, struct Vert3 *out, const uint64_t size,
                       uint64_t *cnt) {
-  uint64_t wid, id;
-  int32_t did, x, y, z, index, i, j, k, ii, dx, dy, dz, ix, iy, iz, skip;
-  const int8_t *edge, *vert;
-  float t;
-  struct Vert3 vertex[8], v0, v1, tv[3];
-  struct v3i lower;
-  struct Cell3 corner[2][2][2], cell;
+  uint64_t wid;
+#pragma omp parallel for schedule(dynamic, 64)
   for (wid = 0; wid < ncell; wid++) {
+    int32_t did;
     for (did = 0; did < 8; did++) {
+      struct Cell3 corner[2][2][2], cell;
+      struct Vert3 vertex[8], v0, v1, tv[3];
+      struct v3i lower;
+      const int8_t *edge, *vert;
+      int32_t x, y, z, index, i, j, k, ii, dx, dy, dz, ix, iy, iz, skip;
+      float t;
       cell = cells[wid];
       dz = (did & 4) ? 1 : -1;
       dy = (did & 2) ? 1 : -1;
@@ -375,6 +384,7 @@ static void extract3d(const struct Cell3 *cells, const uint64_t ncell,
         continue;
       for (edge = &vtkMarchingCubesTriangleCases[index][0]; edge[0] > -1;
            edge += 3) {
+        uint64_t id;
         for (ii = 0; ii < 3; ii++) {
           vert = vtkMarchingCubes_edges[edge[ii]];
           v0 = vertex[vert[0]];
@@ -392,6 +402,7 @@ static void extract3d(const struct Cell3 *cells, const uint64_t ncell,
           continue;
         if (v3f_eq(tv[1].pos, tv[2].pos))
           continue;
+#pragma omp atomic capture
         id = (*cnt)++;
         if (out == NULL || 3 * id + 2 >= size)
           continue;
@@ -540,9 +551,11 @@ static PyObject *py_extract2d(PyObject *self, PyObject *args,
   Py_DECREF(ca);
   Py_DECREF(sa);
   Py_DECREF(fa);
+  Py_BEGIN_ALLOW_THREADS
   qsort(cells, nc, sizeof *cells, comp2);
   cnt = 0;
   extract2d(cells, nc, (float)iso, NULL, 0, &cnt);
+  Py_END_ALLOW_THREADS
   ns = cnt;
   if (ns == 0) {
     if (!uw)
@@ -562,11 +575,13 @@ static PyObject *py_extract2d(PyObject *self, PyObject *args,
       return PyErr_NoMemory();
     }
   }
+  Py_BEGIN_ALLOW_THREADS
   cnt = 0;
   extract2d(cells, nc, (float)iso, tv, 2 * ns, &cnt);
   qsort(tv, 2 * ns, sizeof *tv, compv2);
   cnt = 0;
   createVA2(&cnt, tv, 2 * ns, NULL, 0, NULL);
+  Py_END_ALLOW_THREADS
   nv = cnt;
   if (uw)
     vert = (void *)cells;
@@ -759,9 +774,11 @@ static PyObject *py_extract3d(PyObject *self, PyObject *args,
   Py_DECREF(ca);
   Py_DECREF(sa);
   Py_DECREF(fa);
+  Py_BEGIN_ALLOW_THREADS
   qsort(cells, nc, sizeof *cells, comp3);
   cnt = 0;
   extract3d(cells, nc, (float)iso, NULL, 0, &cnt);
+  Py_END_ALLOW_THREADS
   nt = cnt;
   if (nt == 0) {
     if (!uw)
@@ -781,11 +798,13 @@ static PyObject *py_extract3d(PyObject *self, PyObject *args,
       return PyErr_NoMemory();
     }
   }
+  Py_BEGIN_ALLOW_THREADS
   cnt = 0;
   extract3d(cells, nc, (float)iso, tv, 3 * nt, &cnt);
   qsort(tv, 3 * nt, sizeof *tv, compv3);
   cnt = 0;
   createVA3(&cnt, tv, 3 * nt, NULL, 0, NULL);
+  Py_END_ALLOW_THREADS
   nv = cnt;
   if (uw)
     vert = (void *)cells;
@@ -1371,6 +1390,17 @@ static struct PyModuleDef module = {
     -1, methods};
 
 PyMODINIT_FUNC PyInit_amriso(void) {
+  PyObject *m;
   import_array();
-  return PyModule_Create(&module);
+  m = PyModule_Create(&module);
+  if (m == NULL)
+    return NULL;
+#ifdef _OPENMP
+  PyModule_AddIntConstant(m, "openmp", 1);
+  PyModule_AddIntConstant(m, "openmp_max_threads", omp_get_max_threads());
+#else
+  PyModule_AddIntConstant(m, "openmp", 0);
+  PyModule_AddIntConstant(m, "openmp_max_threads", 1);
+#endif
+  return m;
 }
