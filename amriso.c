@@ -75,8 +75,8 @@ static int64_t morton2(const int32_t x, const int32_t y) {
 
 static struct Vert2 dual2(const struct Cell2 c) {
   struct Vert2 v;
-  v.pos.x = c.lower.x + 0.5f * (1 << c.level);
-  v.pos.y = c.lower.y + 0.5f * (1 << c.level);
+  v.pos.x = c.lower.x + 0.5f * ((int32_t)1 << c.level);
+  v.pos.y = c.lower.y + 0.5f * ((int32_t)1 << c.level);
   v.scalar = c.scalar;
   v.field = c.field;
   return v;
@@ -132,8 +132,8 @@ static void extract2d(const struct Cell2 *cells, const uint64_t ncell,
       skip = 0;
       for (iy = 0; iy < 2 && !skip; iy++)
         for (ix = 0; ix < 2 && !skip; ix++) {
-          lower.x = cell.lower.x + dx * ix * (1 << cell.level);
-          lower.y = cell.lower.y + dy * iy * (1 << cell.level);
+          lower.x = cell.lower.x + dx * ix * ((int32_t)1 << cell.level);
+          lower.y = cell.lower.y + dy * iy * ((int32_t)1 << cell.level);
           if (!findActual2(cells, ncell, &corner[iy][ix], lower, cell.level)) {
             skip = 1;
             break;
@@ -168,7 +168,9 @@ static void extract2d(const struct Cell2 *cells, const uint64_t ncell,
           vert = msq_edges[edge[ii]];
           v0 = vertex[vert[0]];
           v1 = vertex[vert[1]];
-          t = (iso - v0.scalar) / (v1.scalar - v0.scalar);
+          t = (v1.scalar != v0.scalar)
+                  ? (iso - v0.scalar) / (v1.scalar - v0.scalar)
+                  : 0.5f;
           sv[ii].pos.x = (1.0f - t) * v0.pos.x + t * v1.pos.x;
           sv[ii].pos.y = (1.0f - t) * v0.pos.y + t * v1.pos.y;
           sv[ii].scalar = (1.0f - t) * v0.scalar + t * v1.scalar;
@@ -285,9 +287,9 @@ static int64_t morton3(const int32_t x, const int32_t y, const int32_t z) {
 
 static struct Vert3 dual3(const struct Cell3 c) {
   struct Vert3 v;
-  v.pos.x = c.lower.x + 0.5f * (1 << c.level);
-  v.pos.y = c.lower.y + 0.5f * (1 << c.level);
-  v.pos.z = c.lower.z + 0.5f * (1 << c.level);
+  v.pos.x = c.lower.x + 0.5f * ((int32_t)1 << c.level);
+  v.pos.y = c.lower.y + 0.5f * ((int32_t)1 << c.level);
+  v.pos.z = c.lower.z + 0.5f * ((int32_t)1 << c.level);
   v.scalar = c.scalar;
   v.field = c.field;
   return v;
@@ -345,9 +347,9 @@ static void extract3d(const struct Cell3 *cells, const uint64_t ncell,
       for (iz = 0; iz < 2 && !skip; iz++)
         for (iy = 0; iy < 2 && !skip; iy++)
           for (ix = 0; ix < 2 && !skip; ix++) {
-            lower.x = cell.lower.x + dx * ix * (1 << cell.level);
-            lower.y = cell.lower.y + dy * iy * (1 << cell.level);
-            lower.z = cell.lower.z + dz * iz * (1 << cell.level);
+            lower.x = cell.lower.x + dx * ix * ((int32_t)1 << cell.level);
+            lower.y = cell.lower.y + dy * iy * ((int32_t)1 << cell.level);
+            lower.z = cell.lower.z + dz * iz * ((int32_t)1 << cell.level);
             if (!findActual3(cells, ncell, &corner[iz][iy][ix], lower,
                              cell.level)) {
               skip = 1;
@@ -389,7 +391,9 @@ static void extract3d(const struct Cell3 *cells, const uint64_t ncell,
           vert = vtkMarchingCubes_edges[edge[ii]];
           v0 = vertex[vert[0]];
           v1 = vertex[vert[1]];
-          t = (iso - v0.scalar) / (v1.scalar - v0.scalar);
+          t = (v1.scalar != v0.scalar)
+                  ? (iso - v0.scalar) / (v1.scalar - v0.scalar)
+                  : 0.5f;
           tv[ii].pos.x = (1.0f - t) * v0.pos.x + t * v1.pos.x;
           tv[ii].pos.y = (1.0f - t) * v0.pos.y + t * v1.pos.y;
           tv[ii].pos.z = (1.0f - t) * v0.pos.z + t * v1.pos.z;
@@ -464,7 +468,7 @@ static PyObject *py_extract2d(PyObject *self, PyObject *args,
                        NULL};
   PyObject *co, *so, *fo, *out_obj = Py_None, *work_obj = Py_None;
   double iso;
-  unsigned long long nc, ns, nv, cnt, i;
+  uint64_t nc, ns, nv, cnt, i;
   float *geo, *sc, *fl, h, hm, ox, oy;
   struct Cell2 *cells;
   struct Vert2 *tv, *vert;
@@ -660,7 +664,7 @@ static PyObject *py_extract3d(PyObject *self, PyObject *args,
                        NULL};
   PyObject *co, *so, *fo, *out_obj = Py_None, *work_obj = Py_None;
   double iso;
-  unsigned long long nc, nt, nv, cnt, i;
+  uint64_t nc, nt, nv, cnt, i;
   float *geo, *sc, *fl, h, hm, ox, oy, oz;
   struct Cell3 *cells;
   struct Vert3 *tv, *vert;
@@ -879,7 +883,7 @@ static PyObject *py_extract3d(PyObject *self, PyObject *args,
 
 
 static PyObject *py_ws2(PyObject *self, PyObject *args) {
-  unsigned long long nc;
+  uint64_t nc;
   (void)self;
   if (!PyArg_ParseTuple(args, "K", &nc))
     return NULL;
@@ -888,7 +892,7 @@ static PyObject *py_ws2(PyObject *self, PyObject *args) {
 }
 
 static PyObject *py_ws3(PyObject *self, PyObject *args) {
-  unsigned long long nc;
+  uint64_t nc;
   (void)self;
   if (!PyArg_ParseTuple(args, "K", &nc))
     return NULL;
@@ -1027,7 +1031,11 @@ static PyObject *py_dump2d(PyObject *self, PyObject *args) {
     PyErr_Format(PyExc_IOError, "cannot open '%s'", path);
     goto fail2;
   }
-  fwrite(xy, sizeof(float), 2 * nvert, f);
+  if (fwrite(xy, sizeof(float), 2 * nvert, f) != (size_t)(2 * nvert)) {
+    fclose(f);
+    PyErr_Format(PyExc_IOError, "write failed");
+    goto fail2;
+  }
   fclose(f);
 
   snprintf(path, sizeof path, "%s.seg.raw", prefix);
@@ -1036,7 +1044,11 @@ static PyObject *py_dump2d(PyObject *self, PyObject *args) {
     PyErr_Format(PyExc_IOError, "cannot open '%s'", path);
     goto fail2;
   }
-  fwrite(seg, sizeof(int), 2 * nseg, f);
+  if (fwrite(seg, sizeof(int), 2 * nseg, f) != (size_t)(2 * nseg)) {
+    fclose(f);
+    PyErr_Format(PyExc_IOError, "write failed");
+    goto fail2;
+  }
   fclose(f);
 
   snprintf(path, sizeof path, "%s.attr.raw", prefix);
@@ -1045,42 +1057,30 @@ static PyObject *py_dump2d(PyObject *self, PyObject *args) {
     PyErr_Format(PyExc_IOError, "cannot open '%s'", path);
     goto fail2;
   }
-  fwrite(attr, sizeof(float), nvert, f);
+  if (fwrite(attr, sizeof(float), nvert, f) != (size_t)nvert) {
+    fclose(f);
+    PyErr_Format(PyExc_IOError, "write failed");
+    goto fail2;
+  }
   fclose(f);
-
-  base = path;
-  snprintf(path, sizeof path, "%s.xy.raw", prefix);
-  for (j = 0; path[j]; j++)
-    if (path[j] == '/' && path[j + 1])
-      base = &path[j + 1];
 
   {
     char xy_base[FILENAME_MAX], seg_base[FILENAME_MAX], attr_base[FILENAME_MAX];
-    snprintf(xy_base, sizeof xy_base, "%.*s.xy.raw",
-             (int)(base - path + strlen(base) - 7), base);
-    snprintf(seg_base, sizeof seg_base, "%.*s.seg.raw",
-             (int)(base - path + strlen(base) - 7), base);
-    snprintf(attr_base, sizeof attr_base, "%.*s.attr.raw",
-             (int)(base - path + strlen(base) - 7), base);
-
+    int off;
     snprintf(path, sizeof path, "%s.xdmf2", prefix);
-    f = fopen(path, "w");
-    if (!f) {
-      PyErr_Format(PyExc_IOError, "cannot open '%s'", path);
-      goto fail2;
-    }
-
     base = path;
     for (j = 0; path[j]; j++)
       if (path[j] == '/' && path[j + 1])
         base = &path[j + 1];
+    off = (int)(base - path);
+    snprintf(xy_base, sizeof xy_base, "%s.xy.raw", prefix + off);
+    snprintf(seg_base, sizeof seg_base, "%s.seg.raw", prefix + off);
+    snprintf(attr_base, sizeof attr_base, "%s.attr.raw", prefix + off);
 
-    {
-      int off = (int)(base - path);
-      const char *p = prefix + (strlen(prefix) - (strlen(path) - off - 6));
-      snprintf(xy_base, sizeof xy_base, "%s.xy.raw", p);
-      snprintf(seg_base, sizeof seg_base, "%s.seg.raw", p);
-      snprintf(attr_base, sizeof attr_base, "%s.attr.raw", p);
+    f = fopen(path, "w");
+    if (!f) {
+      PyErr_Format(PyExc_IOError, "cannot open '%s'", path);
+      goto fail2;
     }
 
     fprintf(f,
@@ -1176,7 +1176,11 @@ static PyObject *py_dump3d(PyObject *self, PyObject *args) {
     PyErr_Format(PyExc_IOError, "cannot open '%s'", path);
     goto fail3;
   }
-  fwrite(xyz, sizeof(float), 3 * nvert, f);
+  if (fwrite(xyz, sizeof(float), 3 * nvert, f) != (size_t)(3 * nvert)) {
+    fclose(f);
+    PyErr_Format(PyExc_IOError, "write failed");
+    goto fail3;
+  }
   fclose(f);
 
   snprintf(path, sizeof path, "%s.tri.raw", prefix);
@@ -1185,7 +1189,11 @@ static PyObject *py_dump3d(PyObject *self, PyObject *args) {
     PyErr_Format(PyExc_IOError, "cannot open '%s'", path);
     goto fail3;
   }
-  fwrite(tri, sizeof(int), 3 * ntri, f);
+  if (fwrite(tri, sizeof(int), 3 * ntri, f) != (size_t)(3 * ntri)) {
+    fclose(f);
+    PyErr_Format(PyExc_IOError, "write failed");
+    goto fail3;
+  }
   fclose(f);
 
   snprintf(path, sizeof path, "%s.attr.raw", prefix);
@@ -1194,7 +1202,11 @@ static PyObject *py_dump3d(PyObject *self, PyObject *args) {
     PyErr_Format(PyExc_IOError, "cannot open '%s'", path);
     goto fail3;
   }
-  fwrite(attr, sizeof(float), nvert, f);
+  if (fwrite(attr, sizeof(float), nvert, f) != (size_t)nvert) {
+    fclose(f);
+    PyErr_Format(PyExc_IOError, "write failed");
+    goto fail3;
+  }
   fclose(f);
 
   snprintf(path, sizeof path, "%s.xdmf2", prefix);
