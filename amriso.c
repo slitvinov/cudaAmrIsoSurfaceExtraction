@@ -22,13 +22,13 @@ static const int8_t msq_edges[4][2] = {{0, 1}, {1, 2}, {3, 2}, {0, 3}};
 
 
 struct v2i {
-  int x, y;
+  int32_t x, y;
 };
 struct v2f {
   float x, y;
 };
 struct i2 {
-  int x, y;
+  int32_t x, y;
 };
 struct Vert2 {
   struct v2f pos;
@@ -37,29 +37,29 @@ struct Vert2 {
 };
 struct Cell2 {
   struct v2i lower;
-  int level;
+  int32_t level;
   uint64_t morton;
   float scalar, field;
 };
 
-static struct v2i v2i_shr(struct v2i v, int s) {
+static struct v2i v2i_shr(const struct v2i v, const int32_t s) {
   struct v2i u = {v.x >> s, v.y >> s};
   return u;
 }
-static int v2i_eq(struct v2i a, struct v2i b) {
+static int v2i_eq(const struct v2i a, const struct v2i b) {
   return a.x == b.x && a.y == b.y;
 }
-static int v2i_lt(struct v2i a, struct v2i b) {
+static int v2i_lt(const struct v2i a, const struct v2i b) {
   return (a.x < b.x) || (a.x == b.x && a.y < b.y);
 }
-static int v2f_eq(struct v2f a, struct v2f b) {
+static int v2f_eq(const struct v2f a, const struct v2f b) {
   return a.x == b.x && a.y == b.y;
 }
-static int v2f_lt(struct v2f a, struct v2f b) {
+static int v2f_lt(const struct v2f a, const struct v2f b) {
   return (a.x < b.x) || (a.x == b.x && a.y < b.y);
 }
 
-static long leftShift2(long x) {
+static int64_t leftShift2(int64_t x) {
   x = (x | x << 16) & 0x0000FFFF0000FFFFull;
   x = (x | x << 8) & 0x00FF00FF00FF00FFull;
   x = (x | x << 4) & 0x0F0F0F0F0F0F0F0Full;
@@ -67,11 +67,11 @@ static long leftShift2(long x) {
   x = (x | x << 1) & 0x5555555555555555ull;
   return x;
 }
-static long morton2(int x, int y) {
+static int64_t morton2(const int32_t x, const int32_t y) {
   return (leftShift2((uint32_t)y) << 1) | leftShift2((uint32_t)x);
 }
 
-static struct Vert2 dual2(struct Cell2 c) {
+static struct Vert2 dual2(const struct Cell2 c) {
   struct Vert2 v;
   v.pos.x = c.lower.x + 0.5f * (1 << c.level);
   v.pos.y = c.lower.y + 0.5f * (1 << c.level);
@@ -80,10 +80,11 @@ static struct Vert2 dual2(struct Cell2 c) {
   return v;
 }
 
-static int findActual2(struct Cell2 *cells, unsigned long long ncell,
-                       struct Cell2 *result, struct v2i lower, int level) {
-  int f;
-  unsigned long long lo, hi, mid;
+static int findActual2(const struct Cell2 *cells, const uint64_t ncell,
+                       struct Cell2 *result, const struct v2i lower,
+                       const int32_t level) {
+  int32_t f;
+  uint64_t lo, hi, mid;
   uint64_t target = morton2(lower.x, lower.y);
   lo = 0;
   hi = ncell;
@@ -109,11 +110,11 @@ static int findActual2(struct Cell2 *cells, unsigned long long ncell,
   return 0;
 }
 
-static void extract2d(struct Cell2 *cells, unsigned long long ncell, float iso,
-                      struct Vert2 *out, unsigned long long size,
-                      unsigned long long *cnt) {
-  unsigned long long wid, id;
-  int did, x, y, index, i, j, k, ii, dx, dy, ix, iy, skip;
+static void extract2d(const struct Cell2 *cells, const uint64_t ncell,
+                      const float iso, struct Vert2 *out, const uint64_t size,
+                      uint64_t *cnt) {
+  uint64_t wid, id;
+  int32_t did, x, y, index, i, j, k, ii, dx, dy, ix, iy, skip;
   const int8_t *edge, *vert;
   float t;
   struct Vert2 vertex[4], v0, v1, sv[2];
@@ -185,9 +186,9 @@ static void extract2d(struct Cell2 *cells, unsigned long long ncell, float iso,
   }
 }
 
-static void createVA2(unsigned long long *cnt, const struct Vert2 *verts,
-                      int nv, struct Vert2 *out, int size, struct i2 *idx) {
-  int i, j, k, l, id, tid, *seg;
+static void createVA2(uint64_t *cnt, const struct Vert2 *verts, int32_t nv,
+                      struct Vert2 *out, int32_t size, struct i2 *idx) {
+  int32_t i, j, k, l, id, tid, *seg;
   struct Vert2 v;
   for (tid = 0; tid < nv; tid++) {
     v = verts[tid];
@@ -224,13 +225,13 @@ static int compv2(const void *a, const void *b) {
 
 
 struct v3i {
-  int x, y, z;
+  int32_t x, y, z;
 };
 struct v3f {
   float x, y, z;
 };
 struct i3 {
-  int x, y, z;
+  int32_t x, y, z;
 };
 struct Vert3 {
   struct v3f pos;
@@ -239,31 +240,31 @@ struct Vert3 {
 };
 struct Cell3 {
   struct v3i lower;
-  int level;
+  int32_t level;
   uint64_t morton;
   float scalar, field;
 };
 
-static struct v3i v3i_shr(struct v3i v, int s) {
+static struct v3i v3i_shr(const struct v3i v, const int32_t s) {
   struct v3i u = {v.x >> s, v.y >> s, v.z >> s};
   return u;
 }
-static int v3i_eq(struct v3i a, struct v3i b) {
+static int v3i_eq(const struct v3i a, const struct v3i b) {
   return a.x == b.x && a.y == b.y && a.z == b.z;
 }
-static int v3i_lt(struct v3i a, struct v3i b) {
+static int v3i_lt(const struct v3i a, const struct v3i b) {
   return (a.x < b.x) ||
          (a.x == b.x && (a.y < b.y || (a.y == b.y && a.z < b.z)));
 }
-static int v3f_eq(struct v3f a, struct v3f b) {
+static int v3f_eq(const struct v3f a, const struct v3f b) {
   return a.x == b.x && a.y == b.y && a.z == b.z;
 }
-static int v3f_lt(struct v3f a, struct v3f b) {
+static int v3f_lt(const struct v3f a, const struct v3f b) {
   return (a.x < b.x) ||
          (a.x == b.x && (a.y < b.y || (a.y == b.y && a.z < b.z)));
 }
 
-static long leftShift3(long x) {
+static int64_t leftShift3(int64_t x) {
   x = (x | x << 32) & 0x1f00000000ffffull;
   x = (x | x << 16) & 0x1f0000ff0000ffull;
   x = (x | x << 8) & 0x100f00f00f00f00full;
@@ -271,12 +272,12 @@ static long leftShift3(long x) {
   x = (x | x << 2) & 0x1249249249249249ull;
   return x;
 }
-static long morton3(int x, int y, int z) {
+static int64_t morton3(const int32_t x, const int32_t y, const int32_t z) {
   return (leftShift3((uint32_t)z) << 2) | (leftShift3((uint32_t)y) << 1) |
          (leftShift3((uint32_t)x) << 0);
 }
 
-static struct Vert3 dual3(struct Cell3 c) {
+static struct Vert3 dual3(const struct Cell3 c) {
   struct Vert3 v;
   v.pos.x = c.lower.x + 0.5f * (1 << c.level);
   v.pos.y = c.lower.y + 0.5f * (1 << c.level);
@@ -286,10 +287,11 @@ static struct Vert3 dual3(struct Cell3 c) {
   return v;
 }
 
-static int findActual3(struct Cell3 *cells, unsigned long long ncell,
-                       struct Cell3 *result, struct v3i lower, int level) {
-  int f;
-  unsigned long long lo, hi, mid;
+static int findActual3(const struct Cell3 *cells, const uint64_t ncell,
+                       struct Cell3 *result, const struct v3i lower,
+                       const int32_t level) {
+  int32_t f;
+  uint64_t lo, hi, mid;
   uint64_t target = morton3(lower.x, lower.y, lower.z);
   lo = 0;
   hi = ncell;
@@ -315,11 +317,11 @@ static int findActual3(struct Cell3 *cells, unsigned long long ncell,
   return 0;
 }
 
-static void extract3d(struct Cell3 *cells, unsigned long long ncell, float iso,
-                      struct Vert3 *out, unsigned long long size,
-                      unsigned long long *cnt) {
-  unsigned long long wid, id;
-  int did, x, y, z, index, i, j, k, ii, dx, dy, dz, ix, iy, iz, skip;
+static void extract3d(const struct Cell3 *cells, const uint64_t ncell,
+                      const float iso, struct Vert3 *out, const uint64_t size,
+                      uint64_t *cnt) {
+  uint64_t wid, id;
+  int32_t did, x, y, z, index, i, j, k, ii, dx, dy, dz, ix, iy, iz, skip;
   const int8_t *edge, *vert;
   float t;
   struct Vert3 vertex[8], v0, v1, tv[3];
@@ -406,9 +408,9 @@ static void extract3d(struct Cell3 *cells, unsigned long long ncell, float iso,
   }
 }
 
-static void createVA3(unsigned long long *cnt, const struct Vert3 *verts,
-                      int nv, struct Vert3 *out, int size, struct i3 *idx) {
-  int i, j, k, l, id, tid, *tri;
+static void createVA3(uint64_t *cnt, const struct Vert3 *verts, int32_t nv,
+                      struct Vert3 *out, int32_t size, struct i3 *idx) {
+  int32_t i, j, k, l, id, tid, *tri;
   struct Vert3 v;
   for (tid = 0; tid < nv; tid++) {
     v = verts[tid];
@@ -968,9 +970,7 @@ static PyObject *py_ex3(PyObject *self, PyObject *args) {
   return Py_BuildValue("NN", co, so);
 }
 
-/* ================================================================
-   Python: dump2d / dump3d
-   ================================================================ */
+
 static PyObject *py_dump2d(PyObject *self, PyObject *args) {
   const char *prefix;
   PyArrayObject *xy_a, *seg_a, *attr_a;
@@ -1246,9 +1246,7 @@ fail3:
   return NULL;
 }
 
-/* ================================================================
-   Module definition
-   ================================================================ */
+
 static PyMethodDef methods[] = {
     {"extract2d", (PyCFunction)py_extract2d, METH_VARARGS | METH_KEYWORDS,
      "extract2d(coords, scalar, field, iso, out=None, work=None)\n\n"
