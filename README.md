@@ -228,6 +228,14 @@ The `dump3d` call writes `weir-iso.xdmf2`, `weir-iso.xyz.raw`,
 
 ![weir 3D iso-surface](img/weir3d.png)
 
+Software rasterizer:
+```
+$ ./iso3d -v assets/weir-001010.xyz.raw assets/weir-001010.attr.raw:0:6 assets/weir-001010.attr.raw:1:6 0.5 iso
+$ ./render -s 1920x1080 -u y -e 25 -a 220 iso render.png
+```
+
+![weir 3D render](img/weir3d-render.png)
+
 ## Files
 
 | File | Description |
@@ -245,6 +253,8 @@ The `dump3d` call writes `weir-iso.xdmf2`, `weir-iso.xyz.raw`,
 | [viewtri.py](viewtri.py) | Plot triangle mesh from raw binary (requires matplotlib, numpy) |
 | [view3d.py](view3d.py) | Visualize 3D iso-surface via XDMF2 (requires meshio, matplotlib) |
 | [view2d.py](view2d.py) | Visualize 2D iso-line (requires matplotlib, numpy) |
+| [render.c](render.c) | Software rasterizer for triangle meshes (C99) |
+| [stb_image_write.h](stb_image_write.h) | PNG writer (vendored, public domain) |
 | [amriso.c](amriso.c) | Python C extension (2D + 3D) |
 | [pyproject.toml](pyproject.toml) | Python package metadata |
 | [setup.py](setup.py) | Build script for amriso |
