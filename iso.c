@@ -1,6 +1,5 @@
 #include <stdint.h>
-#define __constant__ static const
-#include "table.inc"
+#include "table.h"
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>

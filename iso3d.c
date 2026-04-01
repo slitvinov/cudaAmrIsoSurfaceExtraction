@@ -1,8 +1,7 @@
 #include <limits.h>
 #include <math.h>
 #include <stdint.h>
-#define __constant__ static const
-#include "table.inc"
+#include "table.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
