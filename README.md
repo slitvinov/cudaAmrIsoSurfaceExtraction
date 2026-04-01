@@ -1,3 +1,20 @@
+# amriso
+
+Iso-surface (3D) and iso-line (2D) extraction for adaptive mesh
+refinement (AMR) data with cell-centered fields.
+
+Uses the dual-mesh method from Wald (2020): each AMR cell center
+becomes a vertex of the dual mesh, and marching cubes (3D) or
+marching squares (2D) operates on the dual cells formed by groups
+of adjacent cell centers. Cell lookup is by Morton-code sorted
+binary search. This handles grids with arbitrary levels of
+refinement without stitching or special treatment of level
+boundaries.
+
+Available as C command-line tools, a CUDA kernel, and a Python C
+extension (`amriso`) with optional OpenMP parallelism and a
+zero-allocation mode for repeated calls.
+
 ## Build
 
 CUDA (requires `nvcc`):
