@@ -6,8 +6,7 @@
 #include <string.h>
 
 
-#define __constant__ static const
-#include "table.inc"
+#include "table.h"
 
 
 static const int8_t msq_cases[16][5] = {
