@@ -600,22 +600,37 @@ static PyObject *py_extract2d(PyObject *self, PyObject *args,
     PyObject *xo = NULL, *so2 = NULL, *ao = NULL;
     float *xd, *ad;
     struct i2 *sb;
-    if (uo && PyTuple_Check(out_obj) && PyTuple_Size(out_obj) == 3) {
-      PyArrayObject *o0 = (PyArrayObject *)PyTuple_GetItem(out_obj, 0);
-      PyArrayObject *o1 = (PyArrayObject *)PyTuple_GetItem(out_obj, 1);
-      PyArrayObject *o2 = (PyArrayObject *)PyTuple_GetItem(out_obj, 2);
-      if (PyArray_SIZE(o0) >= (npy_intp)(nv * 2) &&
-          PyArray_SIZE(o1) >= (npy_intp)(ns * 2) &&
-          PyArray_SIZE(o2) >= (npy_intp)nv) {
-        xo = (PyObject *)o0;
-        so2 = (PyObject *)o1;
-        ao = (PyObject *)o2;
-      } else {
+    if (uo && (!PyTuple_Check(out_obj) || PyTuple_Size(out_obj) != 3)) {
+      if (!uw) {
+        free(vert);
+        free(tv);
+      }
+      PyErr_SetString(PyExc_TypeError, "out must be a tuple of 3 arrays");
+      return NULL;
+    }
+    if (uo) {
+      xo = PyArray_FROM_OTF(PyTuple_GetItem(out_obj, 0), NPY_FLOAT,
+                            NPY_ARRAY_INOUT_ARRAY2);
+      so2 = PyArray_FROM_OTF(PyTuple_GetItem(out_obj, 1), NPY_INT32,
+                             NPY_ARRAY_INOUT_ARRAY2);
+      ao = PyArray_FROM_OTF(PyTuple_GetItem(out_obj, 2), NPY_FLOAT,
+                            NPY_ARRAY_INOUT_ARRAY2);
+      if (!xo || !so2 || !ao ||
+          PyArray_SIZE((PyArrayObject *)xo) < (npy_intp)(nv * 2) ||
+          PyArray_SIZE((PyArrayObject *)so2) < (npy_intp)(ns * 2) ||
+          PyArray_SIZE((PyArrayObject *)ao) < (npy_intp)nv) {
         if (!uw) {
           free(vert);
           free(tv);
         }
-        PyErr_SetString(PyExc_ValueError, "out arrays too small");
+        if (!xo || !so2 || !ao)
+          PyErr_SetString(PyExc_TypeError,
+                          "out arrays must be writable float32/int32");
+        else
+          PyErr_SetString(PyExc_ValueError, "out arrays too small");
+        Py_XDECREF(xo);
+        Py_XDECREF(so2);
+        Py_XDECREF(ao);
         return NULL;
       }
     } else if (!uo) {
@@ -823,22 +838,37 @@ static PyObject *py_extract3d(PyObject *self, PyObject *args,
     PyObject *xo = NULL, *to = NULL, *ao = NULL;
     float *xd, *ad;
     struct i3 *tb;
-    if (uo && PyTuple_Check(out_obj) && PyTuple_Size(out_obj) == 3) {
-      PyArrayObject *o0 = (PyArrayObject *)PyTuple_GetItem(out_obj, 0);
-      PyArrayObject *o1 = (PyArrayObject *)PyTuple_GetItem(out_obj, 1);
-      PyArrayObject *o2 = (PyArrayObject *)PyTuple_GetItem(out_obj, 2);
-      if (PyArray_SIZE(o0) >= (npy_intp)(nv * 3) &&
-          PyArray_SIZE(o1) >= (npy_intp)(nt * 3) &&
-          PyArray_SIZE(o2) >= (npy_intp)nv) {
-        xo = (PyObject *)o0;
-        to = (PyObject *)o1;
-        ao = (PyObject *)o2;
-      } else {
+    if (uo && (!PyTuple_Check(out_obj) || PyTuple_Size(out_obj) != 3)) {
+      if (!uw) {
+        free(vert);
+        free(tv);
+      }
+      PyErr_SetString(PyExc_TypeError, "out must be a tuple of 3 arrays");
+      return NULL;
+    }
+    if (uo) {
+      xo = PyArray_FROM_OTF(PyTuple_GetItem(out_obj, 0), NPY_FLOAT,
+                            NPY_ARRAY_INOUT_ARRAY2);
+      to = PyArray_FROM_OTF(PyTuple_GetItem(out_obj, 1), NPY_INT32,
+                            NPY_ARRAY_INOUT_ARRAY2);
+      ao = PyArray_FROM_OTF(PyTuple_GetItem(out_obj, 2), NPY_FLOAT,
+                            NPY_ARRAY_INOUT_ARRAY2);
+      if (!xo || !to || !ao ||
+          PyArray_SIZE((PyArrayObject *)xo) < (npy_intp)(nv * 3) ||
+          PyArray_SIZE((PyArrayObject *)to) < (npy_intp)(nt * 3) ||
+          PyArray_SIZE((PyArrayObject *)ao) < (npy_intp)nv) {
         if (!uw) {
           free(vert);
           free(tv);
         }
-        PyErr_SetString(PyExc_ValueError, "out arrays too small");
+        if (!xo || !to || !ao)
+          PyErr_SetString(PyExc_TypeError,
+                          "out arrays must be writable float32/int32");
+        else
+          PyErr_SetString(PyExc_ValueError, "out arrays too small");
+        Py_XDECREF(xo);
+        Py_XDECREF(to);
+        Py_XDECREF(ao);
         return NULL;
       }
     } else if (!uo) {
@@ -1021,6 +1051,14 @@ static PyObject *py_dump2d(PyObject *self, PyObject *args) {
   }
   nvert = PyArray_SIZE(attr_a);
   nseg = PyArray_SIZE(seg_a) / 2;
+  if (PyArray_SIZE(xy_a) != 2 * nvert || PyArray_SIZE(seg_a) != 2 * nseg) {
+    PyErr_SetString(PyExc_ValueError,
+                    "xy must have 2*nvert elements, seg must have 2*nseg");
+    Py_DECREF(xy_a);
+    Py_DECREF(seg_a);
+    Py_DECREF(attr_a);
+    return NULL;
+  }
   xy = (float *)PyArray_DATA(xy_a);
   seg = (int *)PyArray_DATA(seg_a);
   attr = (float *)PyArray_DATA(attr_a);
@@ -1036,7 +1074,10 @@ static PyObject *py_dump2d(PyObject *self, PyObject *args) {
     PyErr_Format(PyExc_IOError, "write failed");
     goto fail2;
   }
-  fclose(f);
+  if (fclose(f)) {
+    PyErr_Format(PyExc_IOError, "close failed");
+    goto fail2;
+  }
 
   snprintf(path, sizeof path, "%s.seg.raw", prefix);
   f = fopen(path, "wb");
@@ -1049,7 +1090,10 @@ static PyObject *py_dump2d(PyObject *self, PyObject *args) {
     PyErr_Format(PyExc_IOError, "write failed");
     goto fail2;
   }
-  fclose(f);
+  if (fclose(f)) {
+    PyErr_Format(PyExc_IOError, "close failed");
+    goto fail2;
+  }
 
   snprintf(path, sizeof path, "%s.attr.raw", prefix);
   f = fopen(path, "wb");
@@ -1062,7 +1106,10 @@ static PyObject *py_dump2d(PyObject *self, PyObject *args) {
     PyErr_Format(PyExc_IOError, "write failed");
     goto fail2;
   }
-  fclose(f);
+  if (fclose(f)) {
+    PyErr_Format(PyExc_IOError, "close failed");
+    goto fail2;
+  }
 
   {
     char xy_base[FILENAME_MAX], seg_base[FILENAME_MAX], attr_base[FILENAME_MAX];
@@ -1122,7 +1169,15 @@ static PyObject *py_dump2d(PyObject *self, PyObject *args) {
             "  </Domain>\n"
             "</Xdmf>\n",
             nseg, nseg, seg_base, nvert, xy_base, nvert, attr_base);
-    fclose(f);
+    if (ferror(f)) {
+      fclose(f);
+      PyErr_Format(PyExc_IOError, "write failed '%s'", path);
+      goto fail2;
+    }
+    if (fclose(f)) {
+      PyErr_Format(PyExc_IOError, "close failed '%s'", path);
+      goto fail2;
+    }
   }
 
   Py_DECREF(xy_a);
@@ -1166,6 +1221,14 @@ static PyObject *py_dump3d(PyObject *self, PyObject *args) {
   }
   nvert = PyArray_SIZE(attr_a);
   ntri = PyArray_SIZE(tri_a) / 3;
+  if (PyArray_SIZE(xyz_a) != 3 * nvert || PyArray_SIZE(tri_a) != 3 * ntri) {
+    PyErr_SetString(PyExc_ValueError,
+                    "xyz must have 3*nvert elements, tri must have 3*ntri");
+    Py_DECREF(xyz_a);
+    Py_DECREF(tri_a);
+    Py_DECREF(attr_a);
+    return NULL;
+  }
   xyz = (float *)PyArray_DATA(xyz_a);
   tri = (int *)PyArray_DATA(tri_a);
   attr = (float *)PyArray_DATA(attr_a);
@@ -1181,7 +1244,10 @@ static PyObject *py_dump3d(PyObject *self, PyObject *args) {
     PyErr_Format(PyExc_IOError, "write failed");
     goto fail3;
   }
-  fclose(f);
+  if (fclose(f)) {
+    PyErr_Format(PyExc_IOError, "close failed");
+    goto fail3;
+  }
 
   snprintf(path, sizeof path, "%s.tri.raw", prefix);
   f = fopen(path, "wb");
@@ -1194,7 +1260,10 @@ static PyObject *py_dump3d(PyObject *self, PyObject *args) {
     PyErr_Format(PyExc_IOError, "write failed");
     goto fail3;
   }
-  fclose(f);
+  if (fclose(f)) {
+    PyErr_Format(PyExc_IOError, "close failed");
+    goto fail3;
+  }
 
   snprintf(path, sizeof path, "%s.attr.raw", prefix);
   f = fopen(path, "wb");
@@ -1207,7 +1276,10 @@ static PyObject *py_dump3d(PyObject *self, PyObject *args) {
     PyErr_Format(PyExc_IOError, "write failed");
     goto fail3;
   }
-  fclose(f);
+  if (fclose(f)) {
+    PyErr_Format(PyExc_IOError, "close failed");
+    goto fail3;
+  }
 
   snprintf(path, sizeof path, "%s.xdmf2", prefix);
   base = path;
@@ -1263,7 +1335,15 @@ static PyObject *py_dump3d(PyObject *self, PyObject *args) {
           "  </Domain>\n"
           "</Xdmf>\n",
           ntri, ntri, tri_base, nvert, xyz_base, nvert, attr_base);
-  fclose(f);
+  if (ferror(f)) {
+    fclose(f);
+    PyErr_Format(PyExc_IOError, "write failed '%s'", path);
+    goto fail3;
+  }
+  if (fclose(f)) {
+    PyErr_Format(PyExc_IOError, "close failed '%s'", path);
+    goto fail3;
+  }
 
   Py_DECREF(xyz_a);
   Py_DECREF(tri_a);
